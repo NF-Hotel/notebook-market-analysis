@@ -11,14 +11,14 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Deprecated | Claude (AI) | S02 | Initial version; the same phase as NFHotel MIL-027, planned in the repository where the code goes | [34f6b14] |
+| 2026-10-20 | Deprecated | Claude (AI) | S02 | Initial version; the same phase as NFHotel MIL-028, planned in the repository where the code goes | [34f6b14] |
 | 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Three analyses added (occupancy, occupancy on holidays, correlations), so nine, with the number of rooms in the run request; asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-005 Go | [d2ae4cf] |
 
 ---
 
 ## Purpose
 
-Give the market analysis service the analysis that the website needs. NFHotel MIL-004 deployed `NF-Hotel/Notebook_Market_Analysis` and NFHotel MIL-026 was built on its `POST /analyze?insights=true`. That repository is gone from GitHub: its successor `NF-Hotel/notebook-market-analysis` is a new service of which only `/health` and the holiday calendar are built, so the image of the old pinned commit (`6c11cbf2`) can no longer be built and the release check of pull request 180 fails. The milestone builds the missing part in the new service, in its Clean Architecture layers: the nine analyses of the bookings (lead time, holidays, seasonality, cancellations, room value, guest mix, occupancy, occupancy on holidays, correlations), the AI executive summary and suggestions of each, and a run API (start, state, result) behind the key `X-API-Key`. This is the same phase as NFHotel MIL-027, planned here because the code goes in this repository and its plan-first gate needs a milestone here.
+Give the market analysis service the analysis that the website needs. NFHotel MIL-004 deployed `NF-Hotel/Notebook_Market_Analysis` and NFHotel MIL-026 was built on its `POST /analyze?insights=true`. That repository is gone from GitHub: its successor `NF-Hotel/notebook-market-analysis` is a new service of which only `/health` and the holiday calendar are built, so the image of the old pinned commit (`6c11cbf2`) can no longer be built and the release check of pull request 180 fails. The milestone builds the missing part in the new service, in its Clean Architecture layers: the nine analyses of the bookings (lead time, holidays, seasonality, cancellations, room value, guest mix, occupancy, occupancy on holidays, correlations), the AI executive summary and suggestions of each, and a run API (start, state, result) behind the key `X-API-Key`. This is the same phase as NFHotel MIL-028, planned here because the code goes in this repository and its plan-first gate needs a milestone here.
 
 ## Deliverable
 

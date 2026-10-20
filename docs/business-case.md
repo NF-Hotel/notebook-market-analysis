@@ -101,7 +101,7 @@ The project serves objective 6 of the NFHotel Business Case: the market analysis
 ## Constraints
 
 - Docker is the only tool needed on the host.
-- Target date of the run API: 2026-11-13 (NFHotel MIL-027).
+- Target date of the run API: 2026-11-13 (NFHotel MIL-028).
 - Python 3.13 and the layers of `docs/architecture.md`; dependencies point inward.
 - No secret is kept in git.
 
