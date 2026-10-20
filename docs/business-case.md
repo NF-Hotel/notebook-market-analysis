@@ -11,13 +11,14 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | [34f6b14] |
+| 2026-10-20 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | [34f6b14] |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Amended: objective 2 and the scope name nine analyses (occupancy, occupancy on holidays and correlations added), asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-004 Go | [d2ae4cf] |
 
 ---
 
 ## Executive Summary
 
-The NFHotel web application shows its owner a market analysis of the hotel bookings with an executive summary written by a local AI model. The service that made the analysis (`NF-Hotel/Notebook_Market_Analysis`) no longer exists on GitHub, and its successor, this repository, offers only a health check and the holiday calendar. This project builds the missing part: an authenticated HTTP API that takes the bookings, runs six analyses, asks a local AI model for an insight on each, and returns a result that the web application stores and shows. The benchmark of local models, the other half of the repository, is outside this Business Case.
+The NFHotel web application shows its owner a market analysis of the hotel bookings with an executive summary written by a local AI model. The service that made the analysis (`NF-Hotel/Notebook_Market_Analysis`) no longer exists on GitHub, and its successor, this repository, offers only a health check and the holiday calendar. This project builds the missing part: an authenticated HTTP API that takes the bookings, runs nine analyses, asks a local AI model for an insight on each analysis and an observation on each chart, and returns a result that the web application stores and shows. The benchmark of local models, the other half of the repository, is outside this Business Case.
 
 ## Methodological and Standards Foundation
 
@@ -36,8 +37,8 @@ With the analysis in this service, the owner reads a market report in the back o
 ## Objectives
 
 1. Provide the run API (start, state, result) behind a key, with a contract in `openapi/market-contract.yaml` that the web application is built against.
-2. Compute the six analyses (lead time, holidays, seasonality, cancellations, room value, guest mix) from the bookings posted to a run, with figures that a test checks by hand.
-3. Write an executive summary and suggestions for each analysis with a local AI model, and keep the numbers when the model fails or its output is rejected.
+2. Compute the nine analyses (lead time, holidays, seasonality, cancellations, room value, guest mix, occupancy, occupancy on holidays, correlations) from the bookings posted to a run and the number of rooms, with figures that a test checks by hand, each with its formula and its limitations.
+3. Write an executive summary and suggestions for each analysis, and an observation of what the AI sees for each chart, with a local AI model, and keep the numbers when the model fails or its output is rejected.
 4. Ship an image that builds from this repository alone and runs without a published host port.
 
 ## Scope
@@ -45,7 +46,7 @@ With the analysis in this service, the owner reads a market report in the back o
 ### In Scope
 
 - The run API, its contract, its key, its background run and its stored result.
-- The six analyses and the AI insights with a guardrail.
+- The nine analyses and the AI insights with a guardrail.
 - The image and the compose file on the internal network of the NFHotel VM.
 
 ### Out of Scope
@@ -76,7 +77,7 @@ The project serves objective 6 of the NFHotel Business Case: the market analysis
 | Criterion | Target |
 | --- | --- |
 | Contract test | The implementation and `openapi/market-contract.yaml` agree; the test fails on any difference |
-| Run of the sample bookings | `completed` with six analyses and schema version 1.1 |
+| Run of the sample bookings | `completed` with nine analyses and schema version 1.1 |
 | Run of 55,484 bookings with a fake AI provider | Under 60 seconds in the tests |
 | Insight per analysis with a fake AI provider | One for each, `GUARDRAIL_REJECTED` for a rejected one only |
 | Image | Builds from this repository, no published host port, non-root, read-only file system |
@@ -130,3 +131,4 @@ Proceed.
 
 [SA-001]: ./stakeholder-analysis.md
 [34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf
+[d2ae4cf]: https://github.com/NF-Hotel/notebook-market-analysis/commit/d2ae4cf7523aca7c5423059dea5b18c391764fda
