@@ -15,7 +15,7 @@
 
 ## Artifact Under Review
 
-- Instance reviewed: [MIL-001], amended on 2026-10-20 (nine analyses, `room_count`, an observation per chart); the same phase as NFHotel MIL-027
+- Instance reviewed: [MIL-001], amended on 2026-10-20 (nine analyses, `room_count`, an observation per chart); the same phase as NFHotel MIL-028
 - Checklist used: [QC-MIL-001]; also [QC-LANG-001] because the type is written in the PO language
 - Scope: full review of the changes of 2026-10-20 (nine analyses, occupancy, correlation matrix, an AI observation for each chart)
 - Language and domain: en / it
@@ -50,7 +50,7 @@
 
 ## Overall Verdict
 
-Go — every criterion of QC-MIL-001 passes with two action items. The text is the same as NFHotel MIL-027, so the two plans do not drift. Criterion 9 of QC-LANG-001 rests on the user's acceptance in chat and the AI check.
+Go — every criterion of QC-MIL-001 passes with two action items. The text is the same as NFHotel MIL-028, so the two plans do not drift. Criterion 9 of QC-LANG-001 rests on the user's acceptance in chat and the AI check.
 
 ## Action Items
 
