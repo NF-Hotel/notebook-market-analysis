@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | [d2ae4cf] |
 
 ---
 
@@ -64,3 +64,4 @@ Go — every criterion of QC-MIL-001 passes with two action items. The text is t
 [MIL-001]: ../../milestones/mil-001-market-analysis-run-api.md
 [QC-MIL-001]: ../../../framework/qc/artifacts/qc-milestones-gateways.md
 [QC-LANG-001]: ../../../framework/qc/artifacts/qc-language-domain.md
+[d2ae4cf]: https://github.com/NF-Hotel/notebook-market-analysis/commit/d2ae4cf7523aca7c5423059dea5b18c391764fda

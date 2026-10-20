@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-20 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | [34f6b14] |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Amended: objective 2 and the scope name nine analyses (occupancy, occupancy on holidays and correlations added), asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-004 Go | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Amended: objective 2 and the scope name nine analyses (occupancy, occupancy on holidays and correlations added), asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-004 Go | [d2ae4cf] |
 
 ---
 
@@ -131,3 +131,4 @@ Proceed.
 
 [SA-001]: ./stakeholder-analysis.md
 [34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf
+[d2ae4cf]: https://github.com/NF-Hotel/notebook-market-analysis/commit/d2ae4cf7523aca7c5423059dea5b18c391764fda
