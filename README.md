@@ -49,6 +49,10 @@ Client -> FastAPI -> Notebook registry -> Job runner -> Marimo notebook (subproc
                               API <- report service (JSON / PDF / HTML)
 ```
 
+## Service for the NFHotel web application
+
+The web application calls this service for the holiday calendar (`GET /api/v1/holidays`, `POST /api/v1/holidays/update`, header `X-API-Key`). The contract is [openapi/market-contract.yaml](openapi/market-contract.yaml); the image is built from the `Dockerfile` and started with `deploy/docker-compose.yml` (copy `deploy/market-analysis.env.example` to `deploy/market-analysis.env` first). It joins the internal network `nfhotel-api` as `market-analysis-api` and publishes no host port.
+
 ## Requirements
 
 - Python 3.12 or newer
