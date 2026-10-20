@@ -11,7 +11,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | [34f6b14] |
 
 ---
 
@@ -129,3 +129,4 @@ Proceed.
 ---
 
 [SA-001]: ./stakeholder-analysis.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf

@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | [34f6b14] |
 
 ---
 
@@ -64,3 +64,4 @@ Go — every criterion of QC-MIL-001 passes after the review strengthened criter
 [MIL-001]: ../../milestones/mil-001-market-analysis-run-api.md
 [QC-MIL-001]: ../../../framework/qc/artifacts/qc-milestones-gateways.md
 [QC-LANG-001]: ../../../framework/qc/artifacts/qc-language-domain.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf

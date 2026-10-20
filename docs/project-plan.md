@@ -11,7 +11,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Proposed | Claude (AI) | S02 | Initial version | pending |
+| 2026-10-20 | Proposed | Claude (AI) | S02 | Initial version | [34f6b14] |
 
 ---
 
@@ -70,3 +70,4 @@ The phase has no earlier phase. A No-Go keeps the web application on its failing
 [BC-001]: ./business-case.md
 [SA-001]: ./stakeholder-analysis.md
 [MIL-001]: ./milestones/mil-001-market-analysis-run-api.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf

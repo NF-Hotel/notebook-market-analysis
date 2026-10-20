@@ -11,7 +11,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version; accepted by the user in chat on 2026-10-20 after RC-002 Go | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version; accepted by the user in chat on 2026-10-20 after RC-002 Go | [34f6b14] |
 
 ---
 
@@ -74,8 +74,9 @@ Name the people who gain or lose from the market analysis service of the NFHotel
 
 | Stakeholder | Decision | Date |
 | --- | --- | --- |
-| S02 | pending (accepted by the user in chat on 2026-10-20) | pending |
+| S02 | pending (accepted by the user in chat on 2026-10-20) | [34f6b14] |
 
 ---
 
 [BC-001]: ./business-case.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf

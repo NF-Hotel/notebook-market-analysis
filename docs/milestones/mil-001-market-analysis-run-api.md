@@ -11,7 +11,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Proposed | Claude (AI) | S02 | Initial version; the same phase as NFHotel MIL-027, planned in the repository where the code goes | pending |
+| 2026-10-20 | Proposed | Claude (AI) | S02 | Initial version; the same phase as NFHotel MIL-027, planned in the repository where the code goes | [34f6b14] |
 
 ---
 
@@ -83,3 +83,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [BC-001]: ../business-case.md
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf

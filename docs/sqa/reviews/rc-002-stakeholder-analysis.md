@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Initial version | [34f6b14] |
 
 ---
 
@@ -66,3 +66,4 @@ Go — every criterion of QC-SA-001 passes. Criterion 9 of QC-LANG-001 rests on 
 [SA-001]: ../../stakeholder-analysis.md
 [QC-SA-001]: ../../../framework/qc/artifacts/qc-stakeholder-analysis.md
 [QC-LANG-001]: ../../../framework/qc/artifacts/qc-language-domain.md
+[34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf
