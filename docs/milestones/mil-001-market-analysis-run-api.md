@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-20 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Three analyses added (occupancy, occupancy on holidays, correlations), so nine, with the number of rooms in the run request; asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-005 Go | [d2ae4cf] |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Two time limits on the request to the model (a stall timeout and a total limit) replace one fixed timeout; the run API needs no long HTTP request, so the website keeps only short timeouts; accepted by the user in chat on 2026-10-20 after RC-006 Go | pending |
+| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Two time limits on the request to the model (a stall timeout and a total limit) replace one fixed timeout; the run API needs no long HTTP request, so the website keeps only short timeouts; accepted by the user in chat on 2026-10-20 after RC-006 Go | [776ea8d] |
 
 ---
 
@@ -86,3 +86,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [PP-001]: ../project-plan.md
 [34f6b14]: https://github.com/NF-Hotel/notebook-market-analysis/commit/34f6b14a776ce9c75294979f88563378287839bf
 [d2ae4cf]: https://github.com/NF-Hotel/notebook-market-analysis/commit/d2ae4cf7523aca7c5423059dea5b18c391764fda
+[776ea8d]: https://github.com/NF-Hotel/notebook-market-analysis/commit/776ea8d5b8b890e31a47809b8ed2557c26e250b8
