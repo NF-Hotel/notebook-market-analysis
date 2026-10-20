@@ -1,0 +1,29 @@
+.venv/
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+output/*
+!output/.gitkeep
+
+# Real data stays local; the example folder is kept
+data/*
+!data/example/
+data/example/*
+!data/example/.gitkeep
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+coverage.xml
+htmlcov/
+.claude/
+.gitmodules
+
+# Marimo session cache
+__marimo__/
