@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info:
+  title: NFHotel market analysis contract
+  version: 1.0.0
+  description: >-
+    The contract between the NFHotel web application and the market analysis service.
+    The service implements all paths. Every path except `/health` needs the header `X-API-Key`.
+servers:
+  - url: http://market-analysis-api:8000
+    description: The service on the internal Docker network `nfhotel-api`.
+security:
+  - apiKey: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness of the service; needs no key
+      security: []
+      responses:
+        "200":
+          description: The service is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /api/v1/holidays:
+    get:
+      operationId: getHolidays
+      summary: The stored holiday calendar (generated first if there is none)
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1900, maximum: 2200}
+          description: Only the holidays that start in this year.
+      responses:
+        "200": {$ref: "#/components/responses/Calendar"}
+        "400": {$ref: "#/components/responses/Problem"}
+        "401": {$ref: "#/components/responses/Problem"}
+        "422":
+          description: A query parameter is not an integer.
+  /api/v1/holidays/update:
+    post:
+      operationId: updateHolidays
+      summary: Generate the calendar from scratch and store it
+      description: >-
+        Without parameters the range is the previous year to two years ahead.
+        `first_year` must not be after `last_year` (400 `invalid_request`).
+      parameters:
+        - name: first_year
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1900, maximum: 2200}
+        - name: last_year
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1900, maximum: 2200}
+      responses:
+        "200": {$ref: "#/components/responses/Calendar"}
+        "400": {$ref: "#/components/responses/Problem"}
+        "401": {$ref: "#/components/responses/Problem"}
+        "422":
+          description: A query parameter is not an integer.
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  responses:
+    Calendar:
+      description: The holiday calendar.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/HolidayCalendar"}
+    Problem:
+      description: An error with a stable code.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties:
+              code: {type: string, examples: [invalid_request, unauthorized]}
+              message: {type: string}
+  schemas:
+    HolidayCalendar:
+      type: object
+      required: [country, source, first_year, last_year, holidays]
+      properties:
+        country: {type: string, examples: [DK]}
+        source: {type: string, examples: [computed]}
+        first_year: {type: integer}
+        last_year: {type: integer}
+        holidays:
+          type: array
+          items:
+            type: object
+            required: [name, start_date, end_date]
+            properties:
+              name: {type: string}
+              start_date: {type: string, format: date}
+              end_date: {type: string, format: date}
