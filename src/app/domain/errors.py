@@ -32,7 +32,19 @@ class RunNotFound(AppError):
 
 
 class RunAlreadyActive(AppError):
-    code = "run_already_active"
+    code = "run_active"
+
+
+class ResultNotReady(AppError):
+    code = "result_not_ready"
+
+
+class RunFailed(AppError):
+    code = "run_failed"
+
+
+class InvalidRunTransition(AppError):
+    code = "invalid_run_transition"
 
 
 class AIProviderUnavailable(AppError):

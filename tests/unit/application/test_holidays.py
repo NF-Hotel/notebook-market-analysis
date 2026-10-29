@@ -53,3 +53,24 @@ def test_update_rejects_reversed_years() -> None:
     service, _ = make()
     with pytest.raises(InvalidRequest):
         service.update(2030, 2029)
+
+
+def test_covering_uses_the_stored_calendar_when_it_covers_the_years() -> None:
+    service, _ = make()
+    stored = service.get()
+    assert service.covering(2026, 2027) is stored
+
+
+def test_covering_builds_a_calendar_for_other_years_without_storing_it() -> None:
+    service, store = make()
+    stored = service.get()
+    calendar = service.covering(2018, 2020)
+    assert (calendar.first_year, calendar.last_year) == (2018, 2020)
+    assert store.calendar == stored
+
+
+def test_covering_limits_the_years_to_the_supported_range() -> None:
+    service, _ = make()
+    calendar = service.covering(1800, 2500)
+    assert (calendar.first_year, calendar.last_year) == (1900, 2200)
+    assert service.covering(2300, 2400).first_year == 2200
