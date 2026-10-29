@@ -12,6 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-20 | Proposed | Claude (AI) | S02 | Initial version | [34f6b14] |
+| 2026-10-29 | Accepted | Claude (AI) | S02 | Accepted by the user in chat on 2026-10-29, as stand-in for the Product Owner | pending |
 
 ---
 
