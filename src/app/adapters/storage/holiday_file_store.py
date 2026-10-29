@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from datetime import date
 from pathlib import Path
 
+from app.adapters.storage.atomic_json import write_json_atomically
 from app.domain.holidays import HolidayCalendar, HolidayPeriod
 
 
@@ -37,7 +36,6 @@ class FileHolidayStore:
             return None
 
     def save(self, calendar: HolidayCalendar) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "country": calendar.country,
             "source": calendar.source,
@@ -52,8 +50,4 @@ class FileHolidayStore:
                 for h in calendar.holidays
             ],
         }
-        # Write beside the target and replace, so a reader never sees half a file.
-        fd, tmp = tempfile.mkstemp(dir=self._path.parent, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(data, handle)
-        os.replace(tmp, self._path)
+        write_json_atomically(self._path, data)
