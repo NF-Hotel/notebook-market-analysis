@@ -89,7 +89,5 @@ def holidays_in_year(year: int) -> list[HolidayPeriod]:
 
 def build_calendar(first_year: int, last_year: int) -> HolidayCalendar:
     validate_years(first_year, last_year)
-    holidays = tuple(
-        h for year in range(first_year, last_year + 1) for h in holidays_in_year(year)
-    )
+    holidays = tuple(h for year in range(first_year, last_year + 1) for h in holidays_in_year(year))
     return HolidayCalendar(COUNTRY, SOURCE, first_year, last_year, holidays)
