@@ -45,7 +45,10 @@ def test_defaults_match_documentation() -> None:
     assert s.notebook_timeout_seconds == 1800
     assert s.max_concurrent_runs == 2
     assert s.ai_provider is AIProviderName.OLLAMA
-    assert s.ai_timeout_seconds == 120
+    assert s.ai_stall_timeout_seconds == 600
+    assert s.ai_total_limit_seconds == 14400
+    assert s.ai_timeout_seconds is None
+    assert s.ai_max_output_tokens == 32768
     assert s.ollama_base_url == "http://localhost:11434"
     assert s.ollama_model is None
     assert s.lm_studio_base_url == "http://localhost:1234"
@@ -96,6 +99,9 @@ def test_values_are_read_case_insensitively(monkeypatch: pytest.MonkeyPatch) -> 
         ("RETENTION_DAYS", "-1"),
         ("NOTEBOOK_TIMEOUT_SECONDS", "0"),
         ("AI_TIMEOUT_SECONDS", "-5"),
+        ("AI_STALL_TIMEOUT_SECONDS", "0"),
+        ("AI_TOTAL_TIMEOUT_SECONDS", "-1"),
+        ("AI_MAX_OUTPUT_TOKENS", "0"),
         ("MAX_CONCURRENT_RUNS", "0"),
         ("OLLAMA_BASE_URL", "not a url"),
         ("LM_STUDIO_BASE_URL", "ftp://host"),
@@ -259,3 +265,35 @@ def test_env_example_documents_every_variable() -> None:
         line.split("=", 1)[0] for line in text.splitlines() if line and not line.startswith("#")
     }
     assert documented == {name.upper() for name in Settings.model_fields}
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_the_total_limit_is_the_new_setting_then_the_deprecated_one_then_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AI_TIMEOUT_SECONDS", "1800")
+    assert load_settings(env_file=None).ai_total_limit_seconds == 1800
+    monkeypatch.setenv("AI_TOTAL_TIMEOUT_SECONDS", "3600")
+    assert load_settings(env_file=None).ai_total_limit_seconds == 3600
+
+
+@pytest.mark.usefixtures("valid_env")
+def test_the_ai_limits_are_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AI_STALL_TIMEOUT_SECONDS", "30")
+    monkeypatch.setenv("AI_MAX_OUTPUT_TOKENS", "1024")
+    s = load_settings(env_file=None)
+    assert (s.ai_stall_timeout_seconds, s.ai_max_output_tokens) == (30, 1024)
+
+
+@pytest.mark.usefixtures("valid_env")
+@pytest.mark.parametrize(
+    ("provider", "variable", "expected"),
+    [("ollama", "OLLAMA_MODEL", "m1"), ("lmstudio", "LM_STUDIO_MODEL", "m2")],
+)
+def test_the_model_is_the_one_of_the_selected_provider(
+    monkeypatch: pytest.MonkeyPatch, provider: str, variable: str, expected: str
+) -> None:
+    monkeypatch.setenv("AI_PROVIDER", provider)
+    assert load_settings(env_file=None).ai_model is None
+    monkeypatch.setenv(variable, expected)
+    assert load_settings(env_file=None).ai_model == expected

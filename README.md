@@ -55,7 +55,7 @@ The web application calls this service for the holiday calendar (`GET /api/v1/ho
 
 ### Image and dependency lock
 
-The image installs only what the API needs at run time (`requirements.in`: pydantic, pydantic-settings, structlog, fastapi, uvicorn; no notebook library) from `requirements.lock`, which pins every version with hashes. The `Dockerfile` pins the base image by digest, installs with `pip install --require-hashes --only-binary :all: --no-deps`, and runs the code from `PYTHONPATH=/app/src`, so no build backend or setup script runs. After changing `requirements.in` (keep its ranges equal to `pyproject.toml`) or to update versions, regenerate the lock (needs `uv`: `pip install uv`):
+The image installs only what the API needs at run time (`requirements.in`: pydantic, pydantic-settings, structlog, fastapi, uvicorn, httpx; no notebook library) from `requirements.lock`, which pins every version with hashes. The `Dockerfile` pins the base image by digest, installs with `pip install --require-hashes --only-binary :all: --no-deps`, and runs the code from `PYTHONPATH=/app/src`, so no build backend or setup script runs. After changing `requirements.in` (keep its ranges equal to `pyproject.toml`) or to update versions, regenerate the lock (needs `uv`: `pip install uv`):
 
 ```bash
 uv pip compile requirements.in --generate-hashes --python-platform linux --python-version 3.13 --no-header -o requirements.lock
@@ -101,7 +101,10 @@ Configuration comes from environment variables, optionally loaded from `.env`, a
 | `NOTEBOOK_TIMEOUT_SECONDS` | `1800` | Maximum notebook execution time. |
 | `MAX_CONCURRENT_RUNS` | `2` | Concurrent notebook jobs. One active run per notebook. |
 | `AI_PROVIDER` | `ollama` | `ollama` or `lmstudio`. |
-| `AI_TIMEOUT_SECONDS` | `120` | Timeout per AI request. |
+| `AI_STALL_TIMEOUT_SECONDS` | `600` | Seconds without a new token before a model request is given up (`TIMEOUT` for that analysis). |
+| `AI_TOTAL_TIMEOUT_SECONDS` | `14400` | Total limit of one model request, however many tokens arrive (4 hours). |
+| `AI_TIMEOUT_SECONDS` | none | Deprecated: sets the total limit when `AI_TOTAL_TIMEOUT_SECONDS` is not set. |
+| `AI_MAX_OUTPUT_TOKENS` | `32768` | Maximum output tokens, sent on every model request (a reasoning model needs room to think and still write the answer). |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint. |
 | `OLLAMA_MODEL` | none | Model name used by market analysis. |
 | `LM_STUDIO_BASE_URL` | `http://localhost:1234` | LM Studio endpoint. |
@@ -140,6 +143,15 @@ Notebooks read the same configuration as the API. To produce output without a UI
 1. Install Ollama and pull a model, e.g. `ollama pull <model>`.
 2. Set `AI_PROVIDER=ollama`, `OLLAMA_BASE_URL` and `OLLAMA_MODEL`.
 3. Ollama is called through `/api/chat` and `/api/tags`.
+
+## AI insights of the market analysis
+
+A run started with `insights=true` asks the selected model (`AI_PROVIDER` with `OLLAMA_MODEL` or `LM_STUDIO_MODEL`) for one insight per analysis: an executive summary, improvement suggestions and one observation per chart (at most 8), all in one request per analysis. With no model name set, every insight is `unavailable` with the reason `AI_NOT_CONFIGURED`; with `insights=false` the model is not called and there is no `insight`. The analyses are asked one after the other, because the model server is shared.
+
+- **Streaming and limits.** Both providers are called with a streamed request. A request that sends no token for `AI_STALL_TIMEOUT_SECONDS` (default 600), or runs for `AI_TOTAL_TIMEOUT_SECONDS` (default 14400), is given up: that analysis gets `TIMEOUT` and keeps its numbers, and the run goes on. The thinking tokens of a reasoning model count as tokens. `AI_TIMEOUT_SECONDS` is deprecated; it still sets the total limit when `AI_TOTAL_TIMEOUT_SECONDS` is not set. Every request carries `AI_MAX_OUTPUT_TOKENS` (`num_predict` for Ollama, `max_tokens` for LM Studio).
+- **Reasons of an unavailable insight.** `TIMEOUT`, `BAD_STRUCTURE` (the answer is not JSON of the schema twice), `GUARDRAIL_REJECTED`, `MODEL_ERROR` (server unreachable, HTTP error, empty answer), `AI_NOT_CONFIGURED`, and `ANALYSIS_UNAVAILABLE` (the analysis has no data, so the model is not asked).
+- **Guardrail.** A summary or suggestion with a causal or forecast phrase (`FORBIDDEN_PHRASES` in `src/app/application/insight_guardrail.py`) rejects the insight. An observation is dropped when its series is not one of the charts, its evidence names no number, or it names a number that is not in its series (a share of 22.3 may be written 22.3, 22.3%, 22, or 0.223).
+- **Chart ids.** The `series` of an observation is the id the web application gives the chart (`src/app/application/chart_series.py` follows `FindingsSeries.cs` of the web application).
 
 ## Running tests *(planned)*
 

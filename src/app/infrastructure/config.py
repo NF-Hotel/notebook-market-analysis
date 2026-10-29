@@ -28,6 +28,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from app.domain.errors import ConfigurationError
 
 REDACTED = "***"
+DEFAULT_AI_TOTAL_TIMEOUT_SECONDS = 14400.0
 _URL_ADAPTER: TypeAdapter[AnyHttpUrl] = TypeAdapter(AnyHttpUrl)
 
 
@@ -134,7 +135,13 @@ class Settings(BaseSettings):
     max_concurrent_runs: int = Field(default=2, ge=1)
 
     ai_provider: AIProviderName = AIProviderName.OLLAMA
-    ai_timeout_seconds: float = Field(default=120, gt=0)
+    # Seconds without a new token before a model request is given up.
+    ai_stall_timeout_seconds: float = Field(default=600, gt=0)
+    # Seconds of one whole model request, however many tokens arrive.
+    ai_total_timeout_seconds: float | None = Field(default=None, gt=0)
+    # Deprecated: the old single timeout; it still sets the total limit when that is not set.
+    ai_timeout_seconds: float | None = Field(default=None, gt=0)
+    ai_max_output_tokens: int = Field(default=32768, ge=1)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str | None = None
     lm_studio_base_url: str = "http://localhost:1234"
@@ -145,6 +152,11 @@ class Settings(BaseSettings):
     market_data_api_url: str | None = None
     market_data_api_token: SecretStr | None = None
     market_data_csv_path: Path = Path("./data/example")
+
+    @field_validator("ai_total_timeout_seconds", "ai_timeout_seconds", mode="before")
+    @classmethod
+    def _blank_number(cls, value: object) -> object:
+        return _blank_to_none(value)
 
     @field_validator("app_env", "ai_provider", "data_source", "log_format", mode="before")
     @classmethod
@@ -207,6 +219,21 @@ class Settings(BaseSettings):
                 {"variables": [v for v, _ in problems], "problems": problems},
             )
         return self
+
+    @property
+    def ai_total_limit_seconds(self) -> float:
+        """The total limit of one model request: the new setting, else the deprecated one."""
+        for value in (self.ai_total_timeout_seconds, self.ai_timeout_seconds):
+            if value is not None:
+                return value
+        return DEFAULT_AI_TOTAL_TIMEOUT_SECONDS
+
+    @property
+    def ai_model(self) -> str | None:
+        """The model name of the selected provider; None when it is not set."""
+        if self.ai_provider is AIProviderName.OLLAMA:
+            return self.ollama_model
+        return self.lm_studio_model
 
     def safe_dump(self) -> dict[str, Any]:
         """Return the settings as plain JSON-friendly data with secrets redacted."""
