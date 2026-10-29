@@ -1,0 +1,8 @@
+# Run-time dependencies of the API image: what src/app imports. Same ranges as pyproject.toml.
+# No notebook library (marimo, polars, matplotlib, reportlab) and no httpx: the app does not import them.
+# Regenerate requirements.lock with the command in README.md ("Image and dependency lock").
+pydantic>=2.7,<3
+pydantic-settings>=2.3,<3
+structlog>=24.1
+fastapi>=0.111
+uvicorn>=0.30

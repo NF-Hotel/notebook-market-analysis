@@ -53,6 +53,16 @@ Client -> FastAPI -> Notebook registry -> Job runner -> Marimo notebook (subproc
 
 The web application calls this service for the holiday calendar (`GET /api/v1/holidays`, `POST /api/v1/holidays/update`, header `X-API-Key`). The contract is [openapi/market-contract.yaml](openapi/market-contract.yaml); the image is built from the `Dockerfile` and started with `deploy/docker-compose.yml` (copy `deploy/market-analysis.env.example` to `deploy/market-analysis.env` first). It joins the internal network `nfhotel-api` as `market-analysis-api` and publishes no host port.
 
+### Image and dependency lock
+
+The image installs only what the API needs at run time (`requirements.in`: pydantic, pydantic-settings, structlog, fastapi, uvicorn; no notebook library) from `requirements.lock`, which pins every version with hashes. The `Dockerfile` pins the base image by digest, installs with `pip install --require-hashes --only-binary :all: --no-deps`, and runs the code from `PYTHONPATH=/app/src`, so no build backend or setup script runs. After changing `requirements.in` (keep its ranges equal to `pyproject.toml`) or to update versions, regenerate the lock (needs `uv`: `pip install uv`):
+
+```bash
+uv pip compile requirements.in --generate-hashes --python-platform linux --python-version 3.13 --no-header -o requirements.lock
+```
+
+To move the base image, take the new digest from `docker buildx imagetools inspect python:3.13-slim` and replace the one in the `Dockerfile`.
+
 ## Requirements
 
 - Python 3.12 or newer
