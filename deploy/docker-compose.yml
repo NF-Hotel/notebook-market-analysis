@@ -19,6 +19,8 @@ services:
     volumes:
       - results:/data
     read_only: true
+    # The memory limit that MIL-001 criterion 7 measures a run of 55,484 bookings against.
+    mem_limit: 2g
     tmpfs:
       - /tmp
     cap_drop:
