@@ -23,6 +23,7 @@ docker compose --env-file market-analysis.env up -d --build
 | --- | --- |
 | `API_TOKEN` | Nøglen, kaldere sender i `X-API-Key`. Webapplikationen har den samme værdi. |
 | `AI_PROVIDER`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Modelserveren og modellen. Et tomt modelnavn slår AI fra. |
+| `OLLAMA_NUM_CTX` | Kontekstvinduet i tokens (standard `16384`), sendt til Ollama som `num_ctx` i hvert kald. Ollamas egen standard er for lille og afskærer starten af en prompt. LM Studio har sin egen kontekstindstilling i modelindstillingerne. |
 | `AI_STALL_TIMEOUT_SECONDS`, `AI_TOTAL_TIMEOUT_SECONDS` | Som standard 600 og 14400. |
 | `AI_MAX_OUTPUT_TOKENS` | Som standard 32768. |
 

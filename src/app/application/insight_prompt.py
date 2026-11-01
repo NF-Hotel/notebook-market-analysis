@@ -8,7 +8,7 @@ from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
 from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "4"
+PROMPT_VERSION = "5"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
@@ -52,9 +52,9 @@ RULES_REMINDER = (
 
 
 OVERALL_SYSTEM_PROMPT = f"""\
-You are a careful data analyst for a hotel. You are given the summaries and the \
-recommendations that were written for each analysis of the bookings, the largest finding of \
-each analysis, and the figures of the forecast of the service. Cover every analysis, not only \
+You are a careful data analyst for a hotel. You are given a short input: for each \
+analysis of the bookings the first sentence of its summary and its largest finding, and the \
+figures of the forecast of the service. Cover every analysis, not only \
 the one with the most text. You write, in English, one overall interpretation of all of them.
 
 Rules:
@@ -62,8 +62,8 @@ Rules:
 this order: a heading "Key points" and a list of the key points; a heading \
 "What it means together" and a short paragraph; a heading "Caveats" and a list of what the \
 figures cannot say.
-- "recommendations": 2 to {MAX_OVERALL_RECOMMENDATIONS} items, each with "suggestion", \
-"evidence" and "sample_size" (0 if unknown).
+- "recommendations": 2 to {MAX_OVERALL_RECOMMENDATIONS} items drawn from the figures of the \
+input, each with "suggestion", "evidence" and "sample_size" (0 if unknown).
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
 "guarantee", "expected to"). You may describe the forecast of the service and cite its figures.

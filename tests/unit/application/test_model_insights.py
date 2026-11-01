@@ -22,6 +22,7 @@ from app.application.ports.model_client import (
 )
 from app.domain.booking import Booking
 from app.domain.holidays import build_calendar
+from app.infrastructure.config import DEFAULT_OLLAMA_NUM_CTX
 from tests.unit.ai_fakes import (
     FakeModelClient,
     FakeMonotonicClock,
@@ -113,8 +114,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "4"}
-    assert PROMPT_VERSION == "4"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "5"}
+    assert PROMPT_VERSION == "5"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -468,7 +469,7 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "4",
+        "prompt_version": "5",
         "overall": result["insights"]["overall"],
     }
     assert result["insights"]["overall"]["source"] == "ai"
@@ -616,7 +617,10 @@ def test_the_overall_interpretation_is_one_extra_request_about_the_texts_not_the
     (request,) = client.requests
     assert request.system.count("Markdown") >= 1
     assert "OVERALL INPUT:" in request.user
-    assert texts["cancellations"]["insight"]["executive_summary"] in request.user
+    assert (
+        "Analysis Cancellations: By deposit type: No Deposit is the first group of the chart."
+        in (request.user)
+    )
     assert "300.00" in request.user  # the forecast of the service is input
     assert overall is not None
     assert (overall["status"], overall["source"], overall["label"]) == (
@@ -728,3 +732,16 @@ def test_with_ai_off_the_overall_is_the_fallback_from_the_largest_finding_of_eac
     assert overall["text"].startswith("**Key figures**\n\n- **")
     assert "is the largest at" in overall["text"]
     assert "recommendations" not in overall
+
+
+def test_the_default_context_window_holds_the_longest_prompt_of_a_full_run() -> None:
+    def respond(request: ModelRequest) -> str:
+        answer = json.loads(well_formed_answer(request))
+        answer["summary"] += " The groups differ in size and in share." * 80
+        return json.dumps(answer)
+
+    client = FakeModelClient(respond)
+    _build(_provider(client))
+    longest = max(len(r.system) + len(r.user) for r in client.requests)
+    assert any("OVERALL INPUT:" in r.user for r in client.requests)
+    assert longest / 3 < DEFAULT_OLLAMA_NUM_CTX  # a token is about three characters

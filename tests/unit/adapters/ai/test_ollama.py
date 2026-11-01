@@ -31,7 +31,9 @@ def _line(content: str = "", thinking: str = "", done: bool = False) -> bytes:
 
 
 def _client(clock: FakeMonotonicClock | None = None) -> OllamaModelClient:
-    return OllamaModelClient("http://ollama.test:11434/", "phi", clock or FakeMonotonicClock())
+    return OllamaModelClient(
+        "http://ollama.test:11434/", "phi", 16384, clock or FakeMonotonicClock()
+    )
 
 
 @respx.mock
@@ -47,7 +49,7 @@ def test_the_request_is_a_streamed_chat_with_the_schema_and_the_output_limit() -
         ],
         "stream": True,
         "format": SCHEMA,
-        "options": {"num_predict": 32768},
+        "options": {"num_predict": 32768, "num_ctx": 16384},
     }
 
 

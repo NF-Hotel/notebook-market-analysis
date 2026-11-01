@@ -34,9 +34,16 @@ def _parse_line(line: str) -> Delta | None:
 class OllamaModelClient:
     provider = "ollama"
 
-    def __init__(self, base_url: str, model: str, clock: MonotonicClock = time.monotonic) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        context_tokens: int,
+        clock: MonotonicClock = time.monotonic,
+    ) -> None:
         self._url = f"{base_url.rstrip('/')}/api/chat"
         self._model = model
+        self._context_tokens = context_tokens
         self._clock = clock
 
     @property
@@ -52,6 +59,10 @@ class OllamaModelClient:
             ],
             "stream": True,
             "format": request.schema,
-            "options": {"num_predict": request.max_output_tokens},
+            # Without num_ctx Ollama uses its small default and cuts off the start of the prompt.
+            "options": {
+                "num_predict": request.max_output_tokens,
+                "num_ctx": self._context_tokens,
+            },
         }
         return stream_answer(self._url, body, request, _parse_line, self._clock)

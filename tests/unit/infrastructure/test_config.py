@@ -51,6 +51,7 @@ def test_defaults_match_documentation() -> None:
     assert s.ai_max_output_tokens == 32768
     assert s.ollama_base_url == "http://localhost:11434"
     assert s.ollama_model is None
+    assert s.ollama_num_ctx == 16384
     assert s.lm_studio_base_url == "http://localhost:1234"
     assert s.lm_studio_model is None
     assert s.benchmark_models == ()
