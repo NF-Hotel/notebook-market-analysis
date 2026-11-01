@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Tasks 9 and 10 and criteria 12 and 13: the AI texts are written as Markdown (a short lead paragraph, one list item for each chart, a list of recommendations), the contract says that the text fields are Markdown, and the service removes raw HTML from the model's answer; asked for by S01 because the executive summary was one long paragraph that was hard to read; task 10 adds one overall interpretation of the nine analyses (`insights.overall`), with a fallback built from the figures when the AI is off or rejected, because S01 needs a combined interpretation of the results | [62977ec] |
-| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 11 and criterion 14: the guardrail no longer reads a year after a month name or the number of months of a chart as a figure that is missing from the series; found by replaying `seasonality` and `occupancy` against `phi4:latest`, where every text was rejected only for such dates and counts; asked for by S01 because those two analyses had no AI text; tasks 9 to 11 accepted by the user in chat on 2026-11-01 after RC-008 Go, with Deliverable entries for them added in review | pending |
+| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 11 and criterion 14: the guardrail no longer reads a year after a month name or the number of months of a chart as a figure that is missing from the series; found by replaying `seasonality` and `occupancy` against `phi4:latest`, where every text was rejected only for such dates and counts; asked for by S01 because those two analyses had no AI text; tasks 9 to 11 accepted by the user in chat on 2026-11-01 after RC-008 Go, with Deliverable entries for them added in review | [3498744] |
 
 ---
 
@@ -100,3 +100,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [62977ec]: https://github.com/NF-Hotel/notebook-market-analysis/commit/62977ecfb069abdc6d8fe96a107328f578cf759d
+[3498744]: https://github.com/NF-Hotel/notebook-market-analysis/commit/349874455c32ceaeb03285d94c3efaa323f7167b
