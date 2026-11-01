@@ -6,14 +6,14 @@ Med `insights=true` beder tjenesten den indstillede model (`AI_PROVIDER` med `OL
 
 ## Hvordan der spørges
 
-- Ét kald pr. graf. Svaret har et resumé og én til tre anbefalinger, hver med de tal, den bygger på. Tekster er Markdown: en grafs resumé er et kort indledende afsnit og, ved flere punkter, en liste, der nævner grafen eller gruppen med fed. Rå HTML i et svar (tags, kommentarer, `script` og `style` med indhold) fjernes før guardrail og før lagring.
+- Ét kald pr. graf. Svaret har et resumé og én til tre anbefalinger, hver med de tal, den bygger på. Tekster er Markdown: en grafs resumé er to eller tre almindelige sætninger, med fed kun til nøgletal. Skriver en model alligevel en liste, en overskrift eller en tabel, gør tjenesten det til almindelige sætninger (fed bevares). Rå HTML i et svar (tags, kommentarer, `script` og `style` med indhold) fjernes før guardrail og før lagring.
 - Prognosen gives til modellen som en graf, så den må kommentere den.
-- Pr. analyse beholder resultatet `executive_summary` (en Markdown-liste med et punkt pr. graf, grafens navn med fed), `improvement_suggestions` og `observations` (én pr. graf, koblet med dens `series`-id). En graf, hvis tekst afvises, mister kun sin egen tekst.
-- Prompten har en version (`PROMPT_VERSION`, nu `3`).
+- Pr. analyse beholder resultatet `executive_summary` (en Markdown-liste med et punkt pr. graf, grafens navn med fed), `improvement_suggestions` og `observations` (én pr. graf, koblet med dens `series`-id). En graf, hvis tekst afvises af guardrail, spørges én gang til med samme kald og en kort påmindelse om reglerne (ingen årsag, løfte eller forudsigelse; kun tal fra serien; almindelige sætninger). Afvises dette svar også, mister grafen sin egen tekst og ingen andre grafer. Timeout, modelfejl og dårlig struktur spørges ikke igen ud over det ene nye forsøg ved dårlig struktur.
+- Prompten har en version (`PROMPT_VERSION`, nu `4`).
 
 ## Samlet fortolkning
 
-Efter graferne får modellen ét ekstra kald med resuméer og anbefalinger fra de analyser, der har tekst, og prognosens tal (ikke bookingerne). Den skriver Markdown: hovedpunkter, hvad de betyder samlet, 2 til 4 anbefalinger og forbehold. Teksten gemmes som `insights.overall` med `source: ai` og mærkaten `AI-generated`. Samme guardrail gælder, og de tal, den må nævne, er tallene i dens input. Er AI slået fra, har ingen analyse tekst, eller afvises svaret, er `insights.overall` en kort tekst bygget af det største fund i hver tilgængelig analyse, med `source: figures`. En afvist samlet tekst ændrer aldrig analyserne.
+Efter graferne får modellen ét ekstra kald med resuméer og anbefalinger fra de analyser, der har tekst, det største fund i hver tilgængelig analyse (navn, tal og enhed, så ingen analyse udelades) og prognosens tal (ikke bookingerne). Den skriver Markdown: hovedpunkter, hvad de betyder samlet, 2 til 4 anbefalinger og forbehold. Teksten gemmes som `insights.overall` med `source: ai` og mærkaten `AI-generated`. Samme guardrail gælder, og de tal, den må nævne, er tallene i dens input. Er AI slået fra, har ingen analyse tekst, eller afvises svaret, er `insights.overall` en kort tekst bygget af det største fund i hver tilgængelig analyse, med `source: figures`. En afvist samlet tekst ændrer aldrig analyserne.
 
 ## Guardrail
 

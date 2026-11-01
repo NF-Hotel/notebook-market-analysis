@@ -25,6 +25,11 @@ _HTML_BLOCK = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _HTML_TAG = re.compile(r"</?[A-Za-z][^>]*>")
+# A list item a model writes inside a line ("total. - **No Deposit**: ..."), a line marker (list
+# item, numbered item, heading) and a table separator row.
+_INLINE_ITEM = re.compile(r"(?<=\S)[ \t]+[-*+•][ \t]+(?=\*\*)")
+_LINE_MARKER = re.compile(r"^\s*(?:[-*+•]\s+|\d+[.)]\s+|#+\s*)")
+_RULE_LINE = re.compile(r"^\s*\|?[\s:|-]*-[\s:|-]*$")
 
 ANSWER_SCHEMA: JsonObject = {
     "type": "object",
@@ -68,8 +73,30 @@ def strip_html(text: str) -> str:
     return _HTML_TAG.sub("", _HTML_BLOCK.sub("", text))
 
 
-def parse_answer(text: str) -> Answer | None:
-    """The answer of the model, or None when it is not JSON of ``ANSWER_SCHEMA``."""
+def plain_sentences(text: str) -> str:
+    """The text with list items, headings and tables written as plain sentences.
+
+    The lines are joined, the markers ("-", "*", "1.", "#", table pipes) are dropped and bold is
+    kept. A list a model writes inline ("... total. - **No Deposit**: 24.4% - **Other**: 3%") is
+    split at its markers too.
+    """
+    pieces: list[str] = []
+    for line in _INLINE_ITEM.sub("\n", text).splitlines():
+        if _RULE_LINE.match(line):
+            continue
+        cells = [c.strip() for c in line.split("|")] if "|" in line else [line]
+        piece = _LINE_MARKER.sub("", ", ".join(c for c in cells if c)).strip()
+        if piece:
+            pieces.append(piece if piece.endswith((".", "!", "?")) else f"{piece}.")
+    return " ".join(pieces)
+
+
+def parse_answer(text: str, *, plain: bool = True) -> Answer | None:
+    """The answer of the model, or None when it is not JSON of ``ANSWER_SCHEMA``.
+
+    With ``plain`` the summary and the recommendations are written as plain sentences; the
+    overall interpretation keeps its headings and lists (``plain=False``).
+    """
     try:
         data = json.loads(_without_fence(text))
     except ValueError:
@@ -80,11 +107,12 @@ def parse_answer(text: str) -> Answer | None:
     suggestions = _items(data.get("recommendations"), _suggestion)
     if not isinstance(summary, str) or not isinstance(evidence, str) or suggestions is None:
         return None
+    shape = plain_sentences if plain else str.strip
     return Answer(
-        strip_html(summary).strip(),
+        shape(strip_html(summary)),
         strip_html(evidence),
         tuple(
-            Suggestion(strip_html(s.suggestion).strip(), strip_html(s.evidence), s.sample_size)
+            Suggestion(shape(strip_html(s.suggestion)), strip_html(s.evidence), s.sample_size)
             for s in suggestions
         ),
     )

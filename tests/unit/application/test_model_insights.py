@@ -68,7 +68,7 @@ def _provider(client: FakeModelClient) -> ModelInsightProvider:
 
 
 def _ask(answer: str, analysis: JsonObject | None = None) -> JsonObject:
-    provider = _provider(FakeModelClient(scripted(answer)))
+    provider = _provider(FakeModelClient(scripted(answer, answer)))  # a rejection is asked again
     return provider.insight_for("cancellations", analysis or _analysis())
 
 
@@ -113,8 +113,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "3"}
-    assert PROMPT_VERSION == "3"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "4"}
+    assert PROMPT_VERSION == "4"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -182,7 +182,7 @@ def test_a_chart_the_guardrail_rejects_loses_only_its_own_text() -> None:
 
     client = FakeModelClient(respond)
     insight = _provider(client).insight_for("cancellations", _two_charts())
-    assert len(client.requests) == 2
+    assert len(client.requests) == 3  # the rejected chart is asked once more
     assert insight["status"] == "available"
     assert [o["series"] for o in insight["observations"]] == [SEGMENT_ID]
     assert "because" not in insight["executive_summary"]
@@ -276,7 +276,8 @@ def test_the_forecast_of_the_service_may_be_described_with_its_figures() -> None
 def test_the_forecast_chart_still_rejects_a_promise_a_cause_and_an_unknown_figure(
     summary: str,
 ) -> None:
-    client = FakeModelClient(scripted(answer_json(summary=summary, evidence="150.00")))
+    rejected = answer_json(summary=summary, evidence="150.00")
+    client = FakeModelClient(scripted(rejected, rejected))
     insight = _provider(client).insight_for("seasonality", _forecast_analysis())
     assert (insight["status"], insight["reason"]) == ("unavailable", "GUARDRAIL_REJECTED")
 
@@ -467,7 +468,7 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "3",
+        "prompt_version": "4",
         "overall": result["insights"]["overall"],
     }
     assert result["insights"]["overall"]["source"] == "ai"
@@ -538,18 +539,49 @@ def test_the_executive_summary_is_a_markdown_list_with_a_bold_chart_name_for_eac
 
 
 def test_a_summary_with_several_lines_stays_inside_its_list_item() -> None:
-    insight = _ask(answer_json(summary="Lead.\n\n- **No Deposit**: 24.7%"))
+    insight = _ask(answer_json(summary="Lead.\n\nSecond paragraph, **24.7%**."))
     assert insight["executive_summary"] == (
-        "- **By deposit type**: Lead.\n  \n  - **No Deposit**: 24.7%"
+        "- **By deposit type**: Lead. Second paragraph, **24.7%**."
     )
 
 
-def test_raw_html_is_removed_from_the_answer_and_the_list_is_kept() -> None:
+def test_a_list_inside_a_summary_becomes_plain_sentences_and_the_bold_figures_pass_the_checks() -> (
+    None
+):
+    summary = "No Deposit is the largest. - **No Deposit**: **24.7%** - **Refundable**: 15.5%"
+    insight = _ask(answer_json(summary=summary))
+    assert insight["status"] == "available"
+    assert insight["observations"][0]["text"] == (
+        "No Deposit is the largest. **No Deposit**: **24.7%**. **Refundable**: 15.5%."
+    )
+    assert insight["executive_summary"].count("\n") == 0
+
+
+def test_a_first_rejection_is_asked_once_more_with_the_rules_and_a_good_answer_is_kept() -> None:
+    client = FakeModelClient(scripted(answer_json(summary="Rises because of it."), answer_json()))
+    insight = _provider(client).insight_for("cancellations", _analysis())
+    assert insight["status"] == "available"
+    first, second = client.requests
+    assert "rejected by the checks" not in first.user
+    assert second.user.startswith(first.user)
+    assert "rejected by the checks" in second.user
+    assert "no cause, no promise and no prediction" in second.user
+
+
+def test_two_rejections_leave_the_chart_without_text_after_two_requests() -> None:
+    bad = answer_json(summary="Rises because of it.")
+    client = FakeModelClient(scripted(bad, bad))
+    insight = _provider(client).insight_for("cancellations", _analysis())
+    assert (insight["status"], insight["reason"]) == ("unavailable", "GUARDRAIL_REJECTED")
+    assert len(client.requests) == 2
+
+
+def test_raw_html_is_removed_from_the_answer_and_the_list_is_flattened() -> None:
     summary = "<script>alert(1)</script>Lead.\n- **No Deposit**: <b>24.7</b>%<style>p{}</style>"
     rec = _rec("<img src=x onerror=1>Check it.", "15.5")
     insight = _ask(answer_json(summary=summary, recommendations=[rec]))
     assert insight["status"] == "available"
-    assert insight["observations"][0]["text"] == "Lead.\n- **No Deposit**: 24.7%"
+    assert insight["observations"][0]["text"] == "Lead. **No Deposit**: 24.7%."
     assert insight["improvement_suggestions"][0]["suggestion"] == "Check it."
     assert "<" not in insight["executive_summary"]
     assert "alert" not in insight["executive_summary"]
@@ -627,6 +659,34 @@ def test_the_overall_text_may_cite_the_forecast_and_dates_after_a_month_name() -
     overall = _provider(FakeModelClient(scripted(answer))).overall_for(
         _run_texts(), _forecast_input()
     )
+    assert overall is not None
+
+
+def test_the_overall_request_names_the_largest_finding_of_every_analysis_with_findings() -> None:
+    texts = _run_texts()
+    texts["lead_time"] = {**_two_charts(), "insight": texts["cancellations"]["insight"]}
+    texts["room_value"] = _analysis({"fields": ["a"]})  # available, but no chart
+    texts["holidays"] = {**_analysis(), "insight": {"status": "unavailable"}}  # no AI text
+    client = FakeModelClient(scripted(_overall_answer()))
+    _provider(client).overall_for(texts, _forecast_input())
+    (request,) = client.requests
+    assert "Largest finding of Cancellations: By deposit type: No Deposit is the largest" in (
+        request.user
+    )
+    assert "Largest finding of Lead time:" in request.user
+    assert "Largest finding of Holidays:" in request.user  # an analysis with no AI text too
+    assert "Largest finding of Room value" not in request.user  # no chart, no figure
+
+
+def test_a_largest_finding_of_the_input_is_an_allowed_number_of_the_overall_text() -> None:
+    texts = _run_texts()
+    segments = _two_charts()["findings"]["splits"]["by_market_segment"]
+    holidays = _analysis({"splits": {"by_market_segment": segments}})
+    texts["holidays"] = {**holidays, "insight": {"status": "unavailable"}}
+    answer = answer_json(
+        summary="Online is the largest at 75%.", evidence="75", recommendations=[_rec()]
+    )
+    overall = _provider(FakeModelClient(scripted(answer))).overall_for(texts, _forecast_input())
     assert overall is not None
 
 

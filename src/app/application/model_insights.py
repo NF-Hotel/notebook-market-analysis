@@ -32,6 +32,7 @@ from app.application.insight_prompt import (
     OVERALL_SYSTEM_PROMPT,
     PROMPT_VERSION,
     RETRY_REMINDER,
+    RULES_REMINDER,
     SYSTEM_PROMPT,
     build_overall_prompt,
     build_user_prompt,
@@ -150,9 +151,16 @@ class ModelInsightProvider:
         return texts, reason
 
     def _read(self, name: str, analysis: JsonObject, chart: ChartSeries | None) -> _ChartText:
+        prompt = build_user_prompt(name, analysis, chart)
         try:
-            answer = self._ask(build_user_prompt(name, analysis, chart))
-            return _checked(answer, chart)
+            try:
+                return _checked(self._ask(prompt), chart)
+            except _UnavailableError as rejected:
+                if rejected.reason != GUARDRAIL_REJECTED:
+                    raise
+            # One more request with the rules, for this chart only; a second rejection stands.
+            logger.info("the text of a chart of %s was rejected; asking once more", name)
+            return _checked(self._ask(f"{prompt}\n\n{RULES_REMINDER}"), chart)
         except _UnavailableError:
             raise
         except Exception:
@@ -171,9 +179,9 @@ class ModelInsightProvider:
         insights = available_insights(analyses)
         if not insights:
             return None
-        text = overall_input(insights, forecast)
+        text = overall_input(insights, forecast, analyses)
         try:
-            answer = self._ask(build_overall_prompt(text), OVERALL_SYSTEM_PROMPT)
+            answer = self._ask(build_overall_prompt(text), OVERALL_SYSTEM_PROMPT, plain=False)
             return self._overall(
                 _checked(answer, figures_of_input(text), MAX_OVERALL_RECOMMENDATIONS)
             )
@@ -196,13 +204,13 @@ class ModelInsightProvider:
             ],
         }
 
-    def _ask(self, prompt: str, system: str = SYSTEM_PROMPT) -> Answer:
+    def _ask(self, prompt: str, system: str = SYSTEM_PROMPT, *, plain: bool = True) -> Answer:
         user = prompt
         for _ in range(_ATTEMPTS):
             text = self._generate(user, system)
             if not text.strip():
                 raise _UnavailableError(MODEL_ERROR)
-            answer = parse_answer(text)
+            answer = parse_answer(text, plain=plain)
             if answer is not None:
                 return answer
             user = f"{prompt}\n\n{RETRY_REMINDER}"
