@@ -7,7 +7,7 @@ of the analysis keep theirs. The insight of an analysis is unavailable only when
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -16,6 +16,7 @@ from app.application.documents import JsonObject
 from app.application.forecast_charts import FORECAST_KEY, forecast_chart
 from app.application.insight_answer import (
     ANSWER_SCHEMA,
+    MAX_OVERALL_RECOMMENDATIONS,
     MAX_RECOMMENDATIONS,
     Answer,
     Suggestion,
@@ -28,10 +29,19 @@ from app.application.insight_guardrail import (
     names_only_numbers_of,
 )
 from app.application.insight_prompt import (
+    OVERALL_SYSTEM_PROMPT,
     PROMPT_VERSION,
     RETRY_REMINDER,
     SYSTEM_PROMPT,
+    build_overall_prompt,
     build_user_prompt,
+)
+from app.application.overall_insight import (
+    AVAILABLE,
+    SOURCE_AI,
+    available_insights,
+    figures_of_input,
+    overall_input,
 )
 from app.application.ports.model_client import (
     ModelClient,
@@ -118,7 +128,7 @@ class ModelInsightProvider:
             "provider": self._client.provider,
             "model": self._client.model,
             "generated_at": self._clock().isoformat(),
-            "executive_summary": " ".join(t.summary for t in texts),
+            "executive_summary": _as_markdown(texts),
             "improvement_suggestions": [s for t in texts for s in t.suggestions],
             "observations": [t.observation for t in texts if t.series is not None],
         }
@@ -150,10 +160,46 @@ class ModelInsightProvider:
             logger.exception("insight of a chart of analysis %s failed", name)
             raise _UnavailableError(MODEL_ERROR) from None
 
-    def _ask(self, prompt: str) -> Answer:
+    def overall_for(
+        self, analyses: Mapping[str, JsonObject], forecast: JsonObject
+    ) -> JsonObject | None:
+        """One more request: the overall interpretation, or None when there is none to keep.
+
+        It reads the texts of the analyses and the forecast, never the bookings, and it never
+        raises. A rejected or failed answer leaves the analyses as they are.
+        """
+        insights = available_insights(analyses)
+        if not insights:
+            return None
+        text = overall_input(insights, forecast)
+        try:
+            answer = self._ask(build_overall_prompt(text), OVERALL_SYSTEM_PROMPT)
+            return self._overall(
+                _checked(answer, figures_of_input(text), MAX_OVERALL_RECOMMENDATIONS)
+            )
+        except _UnavailableError as failure:
+            logger.info("no overall interpretation: %s", failure.reason)
+        except Exception:
+            logger.exception("the overall interpretation failed")
+        return None
+
+    def _overall(self, text: _ChartText) -> JsonObject:
+        return {
+            "status": AVAILABLE,
+            "source": SOURCE_AI,
+            "label": AI_LABEL,
+            "generated_at": self._clock().isoformat(),
+            "text": text.summary,
+            "evidence": text.evidence,
+            "recommendations": [
+                {k: v for k, v in s.items() if k != "series"} for s in text.suggestions
+            ],
+        }
+
+    def _ask(self, prompt: str, system: str = SYSTEM_PROMPT) -> Answer:
         user = prompt
         for _ in range(_ATTEMPTS):
-            text = self._generate(user)
+            text = self._generate(user, system)
             if not text.strip():
                 raise _UnavailableError(MODEL_ERROR)
             answer = parse_answer(text)
@@ -162,10 +208,8 @@ class ModelInsightProvider:
             user = f"{prompt}\n\n{RETRY_REMINDER}"
         raise _UnavailableError(BAD_STRUCTURE)
 
-    def _generate(self, user: str) -> str:
-        request = ModelRequest(
-            SYSTEM_PROMPT, user, ANSWER_SCHEMA, self._max_output_tokens, self._limits
-        )
+    def _generate(self, user: str, system: str) -> str:
+        request = ModelRequest(system, user, ANSWER_SCHEMA, self._max_output_tokens, self._limits)
         try:
             return self._client.generate(request)
         except ModelTimeoutError:
@@ -180,6 +224,7 @@ class _ChartText:
     """What the model wrote about one chart, after the guardrail; ``series`` is None without one."""
 
     series: str | None
+    title: str
     summary: str
     evidence: str
     suggestions: list[JsonObject]
@@ -187,6 +232,15 @@ class _ChartText:
     @property
     def observation(self) -> JsonObject:
         return {"series": self.series, "text": self.summary, "evidence": self.evidence}
+
+
+def _as_markdown(texts: Sequence[_ChartText]) -> str:
+    """One list item for each chart, naming the chart in bold; a text with no chart stands alone."""
+    items = []
+    for text in texts:
+        body = text.summary.replace("\n", "\n  ")
+        items.append(body if text.series is None else f"- **{text.title}**: {body}")
+    return "\n".join(items)
 
 
 def _charts_of(analysis: JsonObject) -> list[ChartSeries]:
@@ -212,12 +266,14 @@ def _keeps(suggestion: Suggestion, chart: ChartSeries | None) -> bool:
     )
 
 
-def _checked(answer: Answer, chart: ChartSeries | None) -> _ChartText:
+def _checked(
+    answer: Answer, chart: ChartSeries | None, limit: int = MAX_RECOMMENDATIONS
+) -> _ChartText:
     """The text of the chart, or ``GUARDRAIL_REJECTED`` for the chart."""
     series = None if chart is None else chart.id
     is_forecast = chart is not None and chart.is_forecast
     summary = answer.summary.strip()
-    recommended = list(answer.suggestions[:MAX_RECOMMENDATIONS])
+    recommended = list(answer.suggestions[:limit])
     claims = [summary, answer.evidence, *(f"{s.suggestion} {s.evidence}" for s in recommended)]
     if (
         not summary
@@ -236,4 +292,6 @@ def _checked(answer: Answer, chart: ChartSeries | None) -> _ChartText:
         for s in recommended
         if _keeps(s, chart)
     ]
-    return _ChartText(series, summary, answer.evidence, suggestions)
+    return _ChartText(
+        series, "" if chart is None else chart.title, summary, answer.evidence, suggestions
+    )

@@ -28,6 +28,10 @@ Hver analyse har en `status` (`available` eller `unavailable`), en `formula` (hv
 
 `forecast` beregnes af tjenesten, ikke af modellen. Hver måned er gennemsnittet af den samme kalendermåned i historikken med et bånd på én stikprøve-standardafvigelse. Horisonten er 6 måneder ved en historik på 12 måneder eller mere, ellers 3. `history_too_short` er sand under 24 måneder. Der er ingen trend, og omsætningsmåneder uden en booking med pris tæller som nul. Begge dele står i prognosens `limitations`.
 
+## Indsigter
+
+`insights` har `requested` og, med AI, `provider`, `model` og `prompt_version`. AI-tekster (`executive_summary`, `improvement_suggestions` og en observations `text`) er Markdown uden rå HTML. `insights.overall` er den samlede fortolkning af alle analyser og prognosen: `status`, `source`, `label` og `text` (Markdown). Med `source: ai` (mærkat `AI-generated`) har den også `generated_at`, `evidence` og `recommendations`; med `source: figures` er det en kort tekst, tjenesten bygger af det største fund i hver analyse, brugt når AI er slået fra, eller AI-teksten afvises. `overall` er en valgfri egenskab, så skemaet forbliver 1.2.
+
 ## Tal og grænser
 
 Beløb er decimaltekst. Tjenesten skriver i `notices` og `limitations`, hvad den ikke kunne beregne, i stedet for at gætte.

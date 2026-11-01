@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -88,6 +88,11 @@ class RecordingInsightProvider:
         if self.on_call is not None:
             self.on_call()
         return {"status": "available", "executive_summary": f"About {name}."}
+
+    def overall_for(
+        self, analyses: Mapping[str, JsonObject], forecast: JsonObject
+    ) -> JsonObject | None:
+        return None
 
 
 def booking_body(number: int = 1, **changes: Any) -> dict[str, Any]:  # noqa: ANN401

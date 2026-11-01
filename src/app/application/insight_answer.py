@@ -8,6 +8,7 @@ recommendations in its ``improvement_suggestions``; a test keeps the formats in 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -15,6 +16,15 @@ from typing import Any
 from app.application.documents import JsonObject
 
 MAX_RECOMMENDATIONS = 3
+MAX_OVERALL_RECOMMENDATIONS = 4
+
+# The texts are Markdown; raw HTML from a model is removed (script and style with their content,
+# comments, then any other tag), because the texts are shown in a page.
+_HTML_BLOCK = re.compile(
+    r"<(script|style)\b[^>]*>.*?(?:</\1\s*>|\Z)|<!--.*?(?:-->|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
+_HTML_TAG = re.compile(r"</?[A-Za-z][^>]*>")
 
 ANSWER_SCHEMA: JsonObject = {
     "type": "object",
@@ -53,6 +63,11 @@ class Answer:
     suggestions: tuple[Suggestion, ...]
 
 
+def strip_html(text: str) -> str:
+    """The text without HTML tags, comments and the content of script and style elements."""
+    return _HTML_TAG.sub("", _HTML_BLOCK.sub("", text))
+
+
 def parse_answer(text: str) -> Answer | None:
     """The answer of the model, or None when it is not JSON of ``ANSWER_SCHEMA``."""
     try:
@@ -65,7 +80,14 @@ def parse_answer(text: str) -> Answer | None:
     suggestions = _items(data.get("recommendations"), _suggestion)
     if not isinstance(summary, str) or not isinstance(evidence, str) or suggestions is None:
         return None
-    return Answer(summary, evidence, tuple(suggestions))
+    return Answer(
+        strip_html(summary).strip(),
+        strip_html(evidence),
+        tuple(
+            Suggestion(strip_html(s.suggestion).strip(), strip_html(s.evidence), s.sample_size)
+            for s in suggestions
+        ),
+    )
 
 
 def _without_fence(text: str) -> str:

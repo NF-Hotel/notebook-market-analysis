@@ -202,7 +202,8 @@ def test_without_insights_the_provider_is_not_called_and_no_insight_key() -> Non
     result = setup.result.get(run.run_id)
     assert provider.names == []
     assert all("insight" not in a for a in result["analyses"].values())
-    assert result["insights"] == {"requested": False}
+    assert result["insights"]["requested"] is False
+    assert result["insights"]["overall"]["source"] == "figures"
     assert result["status"] == "completed"
 
 

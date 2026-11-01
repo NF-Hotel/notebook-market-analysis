@@ -28,6 +28,7 @@ from app.application.findings import (
     seasonality_findings,
 )
 from app.application.forecast_charts import FORECAST_KEY, forecast_for_analysis
+from app.application.overall_insight import figures_overall
 from app.application.ports.insight_provider import InsightProvider
 from app.domain.booking import OPTIONAL_FIELDS, Booking
 from app.domain.holidays import HolidayCalendar
@@ -178,6 +179,7 @@ def build_market_result(
             {"code": ANALYSES_UNAVAILABLE, "message": "Some analyses have no data to read."}
         )
     insights_section: JsonObject = {"requested": insights is not None}
+    overall: JsonObject | None = None
     if insights is not None:
         insights_section.update(insights.info())
         if _add_insights(analyses, forecast, insights):
@@ -187,6 +189,8 @@ def build_market_result(
                     "message": "The insight of some analyses is unavailable.",
                 }
             )
+        overall = insights.overall_for(analyses, forecast)
+    insights_section["overall"] = overall or figures_overall(analyses)
     return {
         "schema_version": SCHEMA_VERSION,
         "result_id": result_id,

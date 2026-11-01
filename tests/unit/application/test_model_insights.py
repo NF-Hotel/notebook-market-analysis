@@ -113,8 +113,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "2"}
-    assert PROMPT_VERSION == "2"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "3"}
+    assert PROMPT_VERSION == "3"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -124,7 +124,9 @@ def test_an_available_insight_carries_the_label_provider_model_and_time() -> Non
     assert insight["label"] == "AI-generated"
     assert (insight["provider"], insight["model"]) == ("fake", "fake-1")
     assert insight["generated_at"] == NOW.isoformat()
-    assert insight["executive_summary"] == "Shares differ between the groups."
+    assert (
+        insight["executive_summary"] == "- **By deposit type**: Shares differ between the groups."
+    )
     assert insight["improvement_suggestions"] == [
         {
             "suggestion": "Look at the weakest group.",
@@ -157,7 +159,8 @@ def test_the_prompt_holds_the_chart_its_counts_and_the_rules() -> None:
     assert "9450" in request.user  # the counts behind a share are in the chart
     assert [c["id"] for c in charts_of(request)] == [SERIES_ID]
     assert "associations only" in request.system
-    assert "two to three sentences" in request.system
+    assert "Markdown" in request.system
+    assert "bold" in request.system
     assert "recommendations" in request.system
 
 
@@ -464,9 +467,11 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "2",
+        "prompt_version": "3",
+        "overall": result["insights"]["overall"],
     }
-    requests = 0
+    assert result["insights"]["overall"]["source"] == "ai"
+    requests = 1  # the overall interpretation
     for name, analysis in analyses.items():
         insight = analysis["insight"]
         assert insight["status"] == "available", name
@@ -519,4 +524,147 @@ def _chart_id_or_none(request: ModelRequest) -> str | None:
 def test_with_insights_off_there_is_no_insight_and_no_call() -> None:
     result = _build(None)
     assert all("insight" not in a for a in result["analyses"].values())
-    assert result["insights"] == {"requested": False}
+    assert result["insights"]["requested"] is False
+    assert result["insights"]["overall"]["source"] == "figures"
+
+
+def test_the_executive_summary_is_a_markdown_list_with_a_bold_chart_name_for_each_chart() -> None:
+    insight = _provider(FakeModelClient(well_formed_answer)).insight_for(
+        "cancellations", _two_charts()
+    )
+    lines = insight["executive_summary"].split("\n")
+    assert [line.split("**")[1] for line in lines] == ["By deposit type", "By market segment"]
+    assert all(line.startswith("- **") for line in lines)
+
+
+def test_a_summary_with_several_lines_stays_inside_its_list_item() -> None:
+    insight = _ask(answer_json(summary="Lead.\n\n- **No Deposit**: 24.7%"))
+    assert insight["executive_summary"] == (
+        "- **By deposit type**: Lead.\n  \n  - **No Deposit**: 24.7%"
+    )
+
+
+def test_raw_html_is_removed_from_the_answer_and_the_list_is_kept() -> None:
+    summary = "<script>alert(1)</script>Lead.\n- **No Deposit**: <b>24.7</b>%<style>p{}</style>"
+    rec = _rec("<img src=x onerror=1>Check it.", "15.5")
+    insight = _ask(answer_json(summary=summary, recommendations=[rec]))
+    assert insight["status"] == "available"
+    assert insight["observations"][0]["text"] == "Lead.\n- **No Deposit**: 24.7%"
+    assert insight["improvement_suggestions"][0]["suggestion"] == "Check it."
+    assert "<" not in insight["executive_summary"]
+    assert "alert" not in insight["executive_summary"]
+
+
+def _run_texts() -> dict[str, JsonObject]:
+    analysis = _analysis()
+    insight = _provider(FakeModelClient(well_formed_answer)).insight_for("cancellations", analysis)
+    return {"cancellations": {**analysis, "insight": insight}}
+
+
+def _forecast_input() -> JsonObject:
+    return {
+        "history_months": 30,
+        "measures": {"arrivals": {"unit": "bookings", "months": _forecast_part()["months"]}},
+    }
+
+
+def _overall_answer(**changes: object) -> str:
+    return answer_json(
+        summary="## Key points\n- **No Deposit**: 24.7%, forecast 150.00 for 2025-01.",
+        evidence="24.7, 150.00",
+        recommendations=[_rec("Look at 24.7.", "24.7"), _rec("Check 300.00.", "300.00")],
+        **changes,
+    )
+
+
+def test_the_overall_interpretation_is_one_extra_request_about_the_texts_not_the_bookings() -> None:
+    texts = _run_texts()
+    client = FakeModelClient(scripted(_overall_answer()))
+    overall = _provider(client).overall_for(texts, _forecast_input())
+    (request,) = client.requests
+    assert request.system.count("Markdown") >= 1
+    assert "OVERALL INPUT:" in request.user
+    assert texts["cancellations"]["insight"]["executive_summary"] in request.user
+    assert "300.00" in request.user  # the forecast of the service is input
+    assert overall is not None
+    assert (overall["status"], overall["source"], overall["label"]) == (
+        "available",
+        "ai",
+        "AI-generated",
+    )
+    assert overall["generated_at"] == NOW.isoformat()
+    assert overall["text"].startswith("## Key points")
+    assert len(overall["recommendations"]) == 2
+    assert all("series" not in r for r in overall["recommendations"])
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"summary": "Sales will increase."},
+        {"summary": "The deposit is the cause: 24.7 because of it."},
+        {"summary": "No Deposit is 31.4 here."},  # a number that is not in the input
+        {"evidence": "no number"},
+    ],
+    ids=["promise", "cause", "unknown-figure", "no-evidence"],
+)
+def test_a_rejected_overall_text_gives_none_and_leaves_the_analyses_alone(
+    changes: dict[str, object],
+) -> None:
+    texts = _run_texts()
+    before = json.dumps(texts, sort_keys=True)
+    client = FakeModelClient(scripted(json.dumps({**json.loads(_overall_answer()), **changes})))
+    assert _provider(client).overall_for(texts, _forecast_input()) is None
+    assert json.dumps(texts, sort_keys=True) == before
+
+
+def test_the_overall_text_may_cite_the_forecast_and_dates_after_a_month_name() -> None:
+    answer = answer_json(
+        summary="The forecast of the service is 150.00 from January 2025.",
+        evidence="150.00",
+        recommendations=[_rec("Look at 24.7.", "24.7")],
+    )
+    overall = _provider(FakeModelClient(scripted(answer))).overall_for(
+        _run_texts(), _forecast_input()
+    )
+    assert overall is not None
+
+
+def test_the_overall_interpretation_is_not_asked_when_no_analysis_has_text() -> None:
+    client = FakeModelClient(scripted())
+    unavailable = {"room_value": {**_analysis(), "insight": {"status": "unavailable"}}}
+    assert _provider(client).overall_for(unavailable, _forecast_input()) is None
+    assert client.requests == []
+
+
+@pytest.mark.parametrize("outcome", [ModelFailedError("x"), ModelTimeoutError("x"), "not json"])
+def test_a_failed_overall_request_gives_none(outcome: str | Exception) -> None:
+    client = FakeModelClient(scripted(outcome, outcome))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
+
+
+def test_a_run_with_a_rejected_overall_text_has_the_figures_fallback_and_the_same_analyses() -> (
+    None
+):
+    def respond(request: ModelRequest) -> str:
+        if "OVERALL INPUT:" in request.user:
+            return answer_json(summary="This guarantees growth.")
+        return well_formed_answer(request)
+
+    rejected = _build(_provider(FakeModelClient(respond)))
+    accepted = _build(_provider(FakeModelClient(well_formed_answer)))
+    assert rejected["insights"]["overall"]["source"] == "figures"
+    assert rejected["insights"]["overall"]["label"] == "Calculated from the figures"
+    for name, analysis in rejected["analyses"].items():
+        assert analysis["insight"] == accepted["analyses"][name]["insight"]
+    assert rejected["notices"] == accepted["notices"]
+
+
+def test_with_ai_off_the_overall_is_the_fallback_from_the_largest_finding_of_each_analysis() -> (
+    None
+):
+    overall = _build(None)["insights"]["overall"]
+    assert (overall["status"], overall["source"]) == ("available", "figures")
+    assert overall["text"].startswith("**Key figures**\n\n- **")
+    assert "is the largest at" in overall["text"]
+    assert "recommendations" not in overall
