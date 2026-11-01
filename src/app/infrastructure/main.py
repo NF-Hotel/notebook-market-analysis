@@ -34,7 +34,7 @@ def _new_id() -> str:
 
 def _model_client(settings: Settings, model: str) -> ModelClient:
     if settings.ai_provider is AIProviderName.OLLAMA:
-        return OllamaModelClient(settings.ollama_base_url, model)
+        return OllamaModelClient(settings.ollama_base_url, model, settings.ollama_num_ctx)
     return LMStudioModelClient(settings.lm_studio_base_url, model)
 
 

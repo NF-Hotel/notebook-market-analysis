@@ -107,6 +107,7 @@ Configuration comes from environment variables, optionally loaded from `.env`, a
 | `AI_MAX_OUTPUT_TOKENS` | `32768` | Maximum output tokens, sent on every model request (a reasoning model needs room to think and still write the answer). |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama endpoint. |
 | `OLLAMA_MODEL` | none | Model name used by market analysis. |
+| `OLLAMA_NUM_CTX` | `16384` | Context window in tokens, sent to Ollama as `num_ctx` on every request. |
 | `LM_STUDIO_BASE_URL` | `http://localhost:1234` | LM Studio endpoint. |
 | `LM_STUDIO_MODEL` | none | Model identifier used by market analysis. |
 | `BENCHMARK_MODELS` | none | Comma-separated `provider:model` pairs the benchmark compares. |

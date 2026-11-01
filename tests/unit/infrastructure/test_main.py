@@ -32,7 +32,7 @@ def test_the_model_of_ollama_is_used_when_it_is_the_provider(
     )
     built = build_insight_provider(settings)
     assert isinstance(built, ModelInsightProvider)
-    assert built.info() == {"provider": "ollama", "model": "phi3.5", "prompt_version": "4"}
+    assert built.info() == {"provider": "ollama", "model": "phi3.5", "prompt_version": "5"}
 
 
 def test_the_model_of_lm_studio_is_used_when_it_is_the_provider(
@@ -43,9 +43,9 @@ def test_the_model_of_lm_studio_is_used_when_it_is_the_provider(
     )
     built = build_insight_provider(settings)
     assert isinstance(built, ModelInsightProvider)
-    assert built.info() == {"provider": "lmstudio", "model": "qwen", "prompt_version": "4"}
+    assert built.info() == {"provider": "lmstudio", "model": "qwen", "prompt_version": "5"}
 
 
 def test_the_clients_are_the_adapters_of_the_selected_provider() -> None:
-    assert OllamaModelClient("http://h:1", "m").provider == "ollama"
+    assert OllamaModelClient("http://h:1", "m", 16384).provider == "ollama"
     assert LMStudioModelClient("http://h:1", "m").provider == "lmstudio"

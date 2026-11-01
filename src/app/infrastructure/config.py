@@ -29,6 +29,7 @@ from app.domain.errors import ConfigurationError
 
 REDACTED = "***"
 DEFAULT_AI_TOTAL_TIMEOUT_SECONDS = 14400.0
+DEFAULT_OLLAMA_NUM_CTX = 16384
 _URL_ADAPTER: TypeAdapter[AnyHttpUrl] = TypeAdapter(AnyHttpUrl)
 
 
@@ -144,6 +145,8 @@ class Settings(BaseSettings):
     ai_max_output_tokens: int = Field(default=32768, ge=1)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str | None = None
+    # Context window (tokens) sent to Ollama with every request.
+    ollama_num_ctx: int = Field(default=DEFAULT_OLLAMA_NUM_CTX, ge=1)
     lm_studio_base_url: str = "http://localhost:1234"
     lm_studio_model: str | None = None
     benchmark_models: Annotated[tuple[BenchmarkModel, ...], NoDecode] = ()
