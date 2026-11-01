@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Task 13 and criterion 16: the input of the overall interpretation is cut to a size that fits the context window of the model and the service sets the size of that window (`num_ctx`) itself; found in the run of 2026-11-01 where the request was about 25,000 characters, the overall text spoke only of the last analysis and was rejected twice, so the page showed only the text made from the figures; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-010 Go | [f72de70] |
-| 2026-11-02 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 14 and criterion 17: the overall interpretation is asked for once more after a rejection, like the text of a chart, and is told to copy the forecast figures as written (the forecast words were already allowed for it, which a test now states); found by replaying the overall request of the run of 2026-11-01 against `phi4:latest` with the short input of task 13, where the model covered all analyses but wrote a forecast figure that is not in the input (1,278 for 1,178.50) and the rejected text was not asked for again; asked for by S01 because the page still showed only the text made from the figures; accepted by the user in chat on 2026-11-02 after RC-011 Go | pending |
+| 2026-11-02 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 14 and criterion 17: the overall interpretation is asked for once more after a rejection, like the text of a chart, and is told to copy the forecast figures as written (the forecast words were already allowed for it, which a test now states); found by replaying the overall request of the run of 2026-11-01 against `phi4:latest` with the short input of task 13, where the model covered all analyses but wrote a forecast figure that is not in the input (1,278 for 1,178.50) and the rejected text was not asked for again; asked for by S01 because the page still showed only the text made from the figures; accepted by the user in chat on 2026-11-02 after RC-011 Go | [7f0b7a2] |
 
 ---
 
@@ -109,3 +109,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [f72de70]: https://github.com/NF-Hotel/notebook-market-analysis/commit/f72de701c2af51d74288ff4b34dd554d82771551
+[7f0b7a2]: https://github.com/NF-Hotel/notebook-market-analysis/commit/7f0b7a2c47c8381f84fe74968aba5de45272f8df
