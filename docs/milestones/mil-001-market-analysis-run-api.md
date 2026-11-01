@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Room revenue added to the room value analysis as task 7 and useful AI texts with a forecast as task 8 (result schema 1.2); asked for by S01: the page shows only an estimate and does not call it revenue, and the AI summaries say nothing a reader can act on; criteria 10 and 11 added in review; accepted by the user in chat on 2026-11-01 after RC-007 Go | [17bb6eb] |
-| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Task 9 and criterion 12: the AI texts are written as Markdown (a short lead paragraph, one list item for each chart, a list of recommendations), the contract says that the text fields are Markdown, and the service removes raw HTML from the model's answer; asked for by S01 because the executive summary was one long paragraph that was hard to read | pending |
+| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Task 9 and criterion 12: the AI texts are written as Markdown (a short lead paragraph, one list item for each chart, a list of recommendations), the contract says that the text fields are Markdown, and the service removes raw HTML from the model's answer; asked for by S01 because the executive summary was one long paragraph that was hard to read | [0b57ed3] |
 
 ---
 
@@ -93,3 +93,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [17bb6eb]: https://github.com/NF-Hotel/notebook-market-analysis/commit/17bb6eb64c116da5038ec74fe788bede9747e7d4
+[0b57ed3]: https://github.com/NF-Hotel/notebook-market-analysis/commit/0b57ed3d6534102e067c03075ade96493c319dcc
