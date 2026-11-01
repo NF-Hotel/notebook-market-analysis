@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Task 11 and criterion 14: the guardrail no longer reads a year after a month name or the number of months of a chart as a figure that is missing from the series; found by replaying `seasonality` and `occupancy` against `phi4:latest`, where every text was rejected only for such dates and counts; asked for by S01 because those two analyses had no AI text; tasks 9 to 11 accepted by the user in chat on 2026-11-01 after RC-008 Go, with Deliverable entries for them added in review | [3498744] |
-| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 12 and criterion 15: the service builds the Markdown of the texts itself and the model writes plain sentences, a text that the guardrail rejects is asked for once more, and the overall interpretation gets the largest findings of every analysis and the forecast as input; found in the run of 2026-11-01 with `phi4:latest`, where sub-lists were written on one line inside list items, `holidays` and `occupancy` were rejected by chance, and the overall text spoke only of the guest mix; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-009 Go | pending |
+| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 12 and criterion 15: the service builds the Markdown of the texts itself and the model writes plain sentences, a text that the guardrail rejects is asked for once more, and the overall interpretation gets the largest findings of every analysis and the forecast as input; found in the run of 2026-11-01 with `phi4:latest`, where sub-lists were written on one line inside list items, `holidays` and `occupancy` were rejected by chance, and the overall text spoke only of the guest mix; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-009 Go | [86abdf7] |
 
 ---
 
@@ -103,3 +103,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [3498744]: https://github.com/NF-Hotel/notebook-market-analysis/commit/349874455c32ceaeb03285d94c3efaa323f7167b
+[86abdf7]: https://github.com/NF-Hotel/notebook-market-analysis/commit/86abdf7502d600a5e2d012add02f4e7a054036b4

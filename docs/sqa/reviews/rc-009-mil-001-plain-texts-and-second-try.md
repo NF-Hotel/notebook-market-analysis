@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Initial version | pending |
+| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Initial version | [86abdf7] |
 
 ---
 
@@ -63,3 +63,4 @@ Go — every criterion of QC-MIL-001 passes. Criterion 9 of QC-LANG-001 rests on
 [MIL-001]: ../../milestones/mil-001-market-analysis-run-api.md
 [QC-MIL-001]: ../../../framework/qc/artifacts/qc-milestones-gateways.md
 [QC-LANG-001]: ../../../framework/qc/artifacts/qc-language-domain.md
+[86abdf7]: https://github.com/NF-Hotel/notebook-market-analysis/commit/86abdf7502d600a5e2d012add02f4e7a054036b4
