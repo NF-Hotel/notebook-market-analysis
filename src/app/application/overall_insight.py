@@ -1,7 +1,8 @@
 """The overall interpretation of a run: its input, the series that checks it, and the fallback.
 
 The input of the model is text: the summary and the recommendations of every analysis that has an
-AI insight, and the figures of the forecast of the service. The numbers the model may cite are the
+AI insight, the largest finding of every available analysis, and the figures of the forecast of
+the service. The numbers the model may cite are the
 numbers written in that text (see ``figures_of_input``); the guardrail is the one of the charts.
 When there is no AI text, ``figures_overall`` writes a short text from the largest finding of
 each analysis, and the result says ``source: figures``.
@@ -58,11 +59,24 @@ def available_insights(analyses: Mapping[str, JsonObject]) -> dict[str, JsonObje
     }
 
 
-def overall_input(insights: Mapping[str, JsonObject], forecast: JsonObject) -> str:
-    """The text the model reads: the texts of the analyses and the forecast, not the bookings."""
+def _largest_lines(analyses: Mapping[str, JsonObject]) -> list[str]:
+    return [
+        f"Largest finding of {_name(name)}: {line}"
+        for name, analysis in analyses.items()
+        if analysis.get("status") == AVAILABLE and (line := _largest(analysis)) is not None
+    ]
+
+
+def overall_input(
+    insights: Mapping[str, JsonObject], forecast: JsonObject, analyses: Mapping[str, JsonObject]
+) -> str:
+    """The text the model reads: the texts of the analyses, the largest finding of every available
+    analysis and the forecast, not the bookings. The figures of the findings are allowed numbers.
+    """
     lines: list[str] = []
     for name, insight in insights.items():
         lines.extend(_insight_lines(name, insight))
+    lines.extend(_largest_lines(analyses))
     lines.extend(_forecast_lines(forecast))
     return "\n".join(lines)
 
@@ -79,6 +93,8 @@ def _largest(analysis: JsonObject) -> str | None:
     if not charts:
         return None
     chart = charts[0]
+    if not chart.points:
+        return None
     top = max(chart.points, key=lambda point: point.value)
     value = f"{top.value:.1f}".removesuffix(".0")
     unit = chart.unit if chart.unit == "%" else f" {chart.unit}" if chart.unit else ""

@@ -6,14 +6,14 @@ With `insights=true` the service asks the configured model (`AI_PROVIDER` with `
 
 ## How it is asked
 
-- One request for each chart. The answer holds a summary and one to three recommendations, each with the figures it rests on. The texts are Markdown: the summary of a chart is a short lead paragraph and, for several points, a list that names the chart or group in bold. Raw HTML in an answer (tags, comments, `script` and `style` with their content) is removed before the guardrail and before storage.
+- One request for each chart. The answer holds a summary and one to three recommendations, each with the figures it rests on. The texts are Markdown: the summary of a chart is two or three plain sentences, with bold only for key figures. If a model writes a list, a heading or a table anyway, the service turns it into plain sentences (the bold stays). Raw HTML in an answer (tags, comments, `script` and `style` with their content) is removed before the guardrail and before storage.
 - The forecast is given to the model as a chart, so it may comment on it.
-- Per analysis the result keeps `executive_summary` (a Markdown list with one item for each chart, the chart name in bold), `improvement_suggestions` and `observations` (one for each chart, matched by its `series` id). A chart whose text is rejected loses only its own text.
-- The prompt has a version (`PROMPT_VERSION`, now `3`).
+- Per analysis the result keeps `executive_summary` (a Markdown list with one item for each chart, the chart name in bold), `improvement_suggestions` and `observations` (one for each chart, matched by its `series` id). A chart whose text is rejected by the guardrail is asked one more time, with the same request and a short reminder of the rules (no cause, promise or prediction; numbers only from the series; plain sentences). If that answer is rejected too, the chart loses its own text and no other chart. A timeout, a model error or a bad structure is not asked again beyond the one retry for a bad structure.
+- The prompt has a version (`PROMPT_VERSION`, now `4`).
 
 ## Overall interpretation
 
-After the charts, one extra request gives the model the summaries and recommendations of the analyses that have text, and the figures of the forecast (not the bookings). It writes Markdown: key points, what they mean together, 2 to 4 recommendations and caveats. It is stored as `insights.overall` with `source: ai` and the label `AI-generated`. The same guardrail applies, and the numbers it may cite are the numbers written in its input. When AI is off, nothing has text, or the answer is rejected, `insights.overall` is a short text built from the largest finding of each available analysis, with `source: figures`. A rejected overall text never changes the analyses.
+After the charts, one extra request gives the model the summaries and recommendations of the analyses that have text, the largest finding of every available analysis (name, figure and unit, so no analysis is left out), and the figures of the forecast (not the bookings). It writes Markdown: key points, what they mean together, 2 to 4 recommendations and caveats. It is stored as `insights.overall` with `source: ai` and the label `AI-generated`. The same guardrail applies, and the numbers it may cite are the numbers written in its input. When AI is off, nothing has text, or the answer is rejected, `insights.overall` is a short text built from the largest finding of each available analysis, with `source: figures`. A rejected overall text never changes the analyses.
 
 ## Guardrail
 

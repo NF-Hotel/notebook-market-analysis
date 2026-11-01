@@ -8,7 +8,7 @@ from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
 from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "3"
+PROMPT_VERSION = "4"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
@@ -22,10 +22,9 @@ Rules:
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
 "guarantee", "expected to").
-- "summary": Markdown. A short lead paragraph of one or two sentences that say what the chart \
-shows, then, when there are several points, a list with one item for each, naming the chart or \
-the group in bold (for example "- **No Deposit**: 24.7%"). Name the numbers the text rests on, \
-copied from the chart. Write no HTML and no numbered list (use "-" for list items).
+- "summary": two or three plain sentences that say what the chart shows. Use bold only for key \
+figures (for example "**24.7%**"). Write no list, no heading, no table and no HTML. Name the \
+numbers the text rests on, copied from the chart.
 - "evidence": the numbers of the summary, copied from the chart (for example 22.3 or 22.3%).
 - "recommendations": each has "suggestion" (what the hotel can look at or consider; Markdown, \
 no HTML), "evidence" (the numbers of the chart it rests on) and "sample_size" (the number of \
@@ -44,11 +43,19 @@ RETRY_REMINDER = (
     "(list of objects with suggestion, evidence, sample_size)."
 )
 
+# Added to the request of a chart once, after the guardrail rejected the first answer.
+RULES_REMINDER = (
+    "Your previous answer was rejected by the checks of the service. Answer again and keep to "
+    "the rules: describe observed associations only, with no cause, no promise and no "
+    "prediction; use only numbers that are in the chart; write the summary as plain sentences."
+)
+
 
 OVERALL_SYSTEM_PROMPT = f"""\
 You are a careful data analyst for a hotel. You are given the summaries and the \
-recommendations that were written for each analysis of the bookings, and the figures of the \
-forecast of the service. You write, in English, one overall interpretation of all of them.
+recommendations that were written for each analysis of the bookings, the largest finding of \
+each analysis, and the figures of the forecast of the service. Cover every analysis, not only \
+the one with the most text. You write, in English, one overall interpretation of all of them.
 
 Rules:
 - Answer in Markdown, no HTML, no numbered list (use "-" for list items). "summary" holds, in \
