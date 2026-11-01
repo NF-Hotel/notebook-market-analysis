@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Room revenue added to the room value analysis as task 7 and useful AI texts with a forecast as task 8 (result schema 1.2); asked for by S01: the page shows only an estimate and does not call it revenue, and the AI summaries say nothing a reader can act on; criteria 10 and 11 added in review; accepted by the user in chat on 2026-11-01 after RC-007 Go | [17bb6eb] |
-| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Tasks 9 and 10 and criteria 12 and 13: the AI texts are written as Markdown (a short lead paragraph, one list item for each chart, a list of recommendations), the contract says that the text fields are Markdown, and the service removes raw HTML from the model's answer; asked for by S01 because the executive summary was one long paragraph that was hard to read; task 10 adds one overall interpretation of the nine analyses (`insights.overall`), with a fallback built from the figures when the AI is off or rejected, because S01 needs a combined interpretation of the results | pending |
+| 2026-11-01 | Proposed | Claude (AI) | AI at the request of the user, not independent | Tasks 9 and 10 and criteria 12 and 13: the AI texts are written as Markdown (a short lead paragraph, one list item for each chart, a list of recommendations), the contract says that the text fields are Markdown, and the service removes raw HTML from the model's answer; asked for by S01 because the executive summary was one long paragraph that was hard to read; task 10 adds one overall interpretation of the nine analyses (`insights.overall`), with a fallback built from the figures when the AI is off or rejected, because S01 needs a combined interpretation of the results | [62977ec] |
 
 ---
 
@@ -95,3 +95,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [17bb6eb]: https://github.com/NF-Hotel/notebook-market-analysis/commit/17bb6eb64c116da5038ec74fe788bede9747e7d4
+[62977ec]: https://github.com/NF-Hotel/notebook-market-analysis/commit/62977ecfb069abdc6d8fe96a107328f578cf759d
