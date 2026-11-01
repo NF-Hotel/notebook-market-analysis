@@ -8,7 +8,7 @@ from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
 from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "6"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
@@ -67,6 +67,8 @@ input, each with "suggestion", "evidence" and "sample_size" (0 if unknown).
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
 "guarantee", "expected to"). You may describe the forecast of the service and cite its figures.
+- Copy the figures of the forecast exactly as written in the input: no rounding and no \
+calculation of your own.
 - Use only numbers that are in the input. Do not invent any and do not calculate new ones.
 - "evidence": the numbers of the summary, copied from the input.
 - Answer with one JSON object of the given schema and nothing else.

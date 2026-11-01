@@ -114,8 +114,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "5"}
-    assert PROMPT_VERSION == "5"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "6"}
+    assert PROMPT_VERSION == "6"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -469,7 +469,7 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "5",
+        "prompt_version": "6",
         "overall": result["insights"]["overall"],
     }
     assert result["insights"]["overall"]["source"] == "ai"
@@ -649,9 +649,63 @@ def test_a_rejected_overall_text_gives_none_and_leaves_the_analyses_alone(
 ) -> None:
     texts = _run_texts()
     before = json.dumps(texts, sort_keys=True)
-    client = FakeModelClient(scripted(json.dumps({**json.loads(_overall_answer()), **changes})))
+    bad = json.dumps({**json.loads(_overall_answer()), **changes})
+    client = FakeModelClient(scripted(bad, bad))
     assert _provider(client).overall_for(texts, _forecast_input()) is None
     assert json.dumps(texts, sort_keys=True) == before
+
+
+def test_an_overall_text_that_describes_the_forecast_of_the_service_is_kept() -> None:
+    answer = answer_json(
+        summary="The forecast shows 150.00 for 2025-01, projected from the history.",
+        evidence="150.00",
+        recommendations=[_rec("Look at 24.7.", "24.7")],
+    )
+    client = FakeModelClient(scripted(answer))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is not None
+    assert len(client.requests) == 1
+
+
+def test_a_forecast_figure_written_wrongly_in_the_overall_text_is_rejected() -> None:
+    answer = answer_json(
+        summary="The forecast shows 1,278 for 2025-01.",  # not a figure of the input
+        evidence="150.00",
+        recommendations=[_rec("Look at 24.7.", "24.7")],
+    )
+    client = FakeModelClient(scripted(answer, answer))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
+
+
+def test_a_first_overall_rejection_is_asked_once_more_and_a_good_answer_is_kept() -> None:
+    bad = answer_json(summary="Sales will increase.")
+    client = FakeModelClient(scripted(bad, _overall_answer()))
+    overall = _provider(client).overall_for(_run_texts(), _forecast_input())
+    assert overall is not None
+    first, second = client.requests
+    assert "OVERALL INPUT:" in second.user
+    assert second.user.startswith(first.user)
+    assert "rejected by the checks" in second.user
+    assert "rejected by the checks" not in first.user
+
+
+def test_two_overall_rejections_give_none_after_exactly_two_requests() -> None:
+    bad = answer_json(summary="Sales will increase.")
+    client = FakeModelClient(scripted(bad, bad))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
+    assert len(client.requests) == 2
+
+
+@pytest.mark.parametrize("outcome", [ModelFailedError("x"), ModelTimeoutError("x")])
+def test_an_overall_timeout_or_model_error_is_not_asked_again(outcome: Exception) -> None:
+    client = FakeModelClient(scripted(outcome, _overall_answer()))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
+    assert len(client.requests) == 1
+
+
+def test_the_overall_prompt_tells_the_model_to_copy_the_forecast_figures() -> None:
+    client = FakeModelClient(scripted(_overall_answer()))
+    _provider(client).overall_for(_run_texts(), _forecast_input())
+    assert "exactly as written in the input" in client.requests[0].system
 
 
 def test_the_overall_text_may_cite_the_forecast_and_dates_after_a_month_name() -> None:

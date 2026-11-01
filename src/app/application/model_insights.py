@@ -153,14 +153,7 @@ class ModelInsightProvider:
     def _read(self, name: str, analysis: JsonObject, chart: ChartSeries | None) -> _ChartText:
         prompt = build_user_prompt(name, analysis, chart)
         try:
-            try:
-                return _checked(self._ask(prompt), chart)
-            except _UnavailableError as rejected:
-                if rejected.reason != GUARDRAIL_REJECTED:
-                    raise
-            # One more request with the rules, for this chart only; a second rejection stands.
-            logger.info("the text of a chart of %s was rejected; asking once more", name)
-            return _checked(self._ask(f"{prompt}\n\n{RULES_REMINDER}"), chart)
+            return self._asked_twice(prompt, SYSTEM_PROMPT, True, lambda a: _checked(a, chart))
         except _UnavailableError:
             raise
         except Exception:
@@ -181,15 +174,34 @@ class ModelInsightProvider:
             return None
         text = overall_input(insights, forecast, analyses)
         try:
-            answer = self._ask(build_overall_prompt(text), OVERALL_SYSTEM_PROMPT, plain=False)
+            # The figures of the input are a forecast-flagged series: the overall text may
+            # describe the forecast of the service, and nothing else is let through.
+            figures = figures_of_input(text)
             return self._overall(
-                _checked(answer, figures_of_input(text), MAX_OVERALL_RECOMMENDATIONS)
+                self._asked_twice(
+                    build_overall_prompt(text),
+                    OVERALL_SYSTEM_PROMPT,
+                    False,
+                    lambda a: _checked(a, figures, MAX_OVERALL_RECOMMENDATIONS),
+                )
             )
         except _UnavailableError as failure:
             logger.info("no overall interpretation: %s", failure.reason)
         except Exception:
             logger.exception("the overall interpretation failed")
         return None
+
+    def _asked_twice(
+        self, prompt: str, system: str, plain: bool, check: Callable[[Answer], _ChartText]
+    ) -> _ChartText:
+        """The checked text; a rejected answer is asked once more with the rules, then it stands."""
+        try:
+            return check(self._ask(prompt, system, plain=plain))
+        except _UnavailableError as rejected:
+            if rejected.reason != GUARDRAIL_REJECTED:
+                raise
+        logger.info("an answer was rejected by the guardrail; asking once more")
+        return check(self._ask(f"{prompt}\n\n{RULES_REMINDER}", system, plain=plain))
 
     def _overall(self, text: _ChartText) -> JsonObject:
         return {
