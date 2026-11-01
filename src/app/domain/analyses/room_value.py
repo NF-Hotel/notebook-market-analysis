@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from app.domain.booking import Booking
 from app.domain.figures import Figure, MeanValue, make_figure, mean_of
+from app.domain.period import month_key
 
 ESTIMATE_NOTICE_CODE = "ESTIMATE_NOT_REVENUE"
 ESTIMATE_LABEL = (
@@ -17,11 +18,19 @@ STAY_BUCKETS: tuple[str, ...] = ("1", "2", "3", "4", "5-7", "8+")
 # The highest number of nights of each bucket but the last, in order.
 _BUCKET_LIMITS = tuple(zip((1, 2, 3, 4, 7), STAY_BUCKETS[:-1], strict=True))
 
+REVENUE_LIMITATION = (
+    "Room revenue is price_per_night times nights of the bookings that are not cancelled, before "
+    "taxes, fees, discounts and extras; the currency is not known and is taken as the price "
+    "units of the input."
+)
+
 FORMULA = (
     "Length of stay is the weekend nights plus the week nights. The buckets are 1, 2, 3, 4, 5-7 "
     "and 8+ nights; a bucket figure is the records in it over the records with at least one "
     "night. The estimated value of a booking is price_per_night times nights, in the price units "
-    "of the input; total is the sum and mean the mean over the bookings that have a price."
+    "of the input; total is the sum and mean the mean over the bookings that have a price. Room "
+    "revenue is the same value over the bookings that are not cancelled, summed by month of "
+    "arrival."
 )
 LIMITATIONS: tuple[str, ...] = (
     "The estimated value is an ESTIMATE, not revenue: taxes, fees, discounts, extras, the "
@@ -31,6 +40,7 @@ LIMITATIONS: tuple[str, ...] = (
     "included and counted in zero_price_records.",
     "Cancelled bookings are valued like the others, so the value of cancelled bookings is not "
     "money lost.",
+    REVENUE_LIMITATION,
 )
 
 
@@ -41,6 +51,27 @@ class EstimatedValueGroup:
     total: Decimal
     records_without_price: int
     zero_price_records: int
+
+
+@dataclass(frozen=True, slots=True)
+class MonthlyRevenue:
+    """Room revenue of the bookings that arrive in ``month`` (``YYYY-MM``) and have a price."""
+
+    month: str
+    total: Decimal
+    bookings: int
+
+
+@dataclass(frozen=True, slots=True)
+class RoomRevenue:
+    """Price per night times nights of the bookings that are not cancelled."""
+
+    total: Decimal
+    per_booking: MeanValue
+    records_used: int
+    records_without_price: int
+    monthly: tuple[MonthlyRevenue, ...]
+    limitation: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +86,7 @@ class RoomValueAnalysis:
     zero_price_records: int
     overall: EstimatedValueGroup
     by_cancellation_status: tuple[EstimatedValueGroup, ...]
+    room_revenue: RoomRevenue
     formula: str
     limitations: tuple[str, ...]
 
@@ -74,6 +106,25 @@ def _value_group(label: str, group: list[Booking], total: int) -> EstimatedValue
         total=sum(values, Decimal(0)),
         records_without_price=len(group) - len(values),
         zero_price_records=sum(1 for b in group if b.price_per_night == 0),
+    )
+
+
+def _room_revenue(kept: list[Booking]) -> RoomRevenue:
+    """``kept`` are the stays that are not cancelled; a booking without a price is left out."""
+    priced = [(b, v) for b in kept if (v := b.estimated_value) is not None]
+    totals: dict[str, Decimal] = {}
+    counts: Counter[str] = Counter()
+    for booking, value in priced:
+        key = month_key(booking.arrival_date)
+        totals[key] = totals.get(key, Decimal(0)) + value
+        counts[key] += 1
+    return RoomRevenue(
+        total=sum((v for _, v in priced), Decimal(0)),
+        per_booking=mean_of(v for _, v in priced),
+        records_used=len(kept),
+        records_without_price=len(kept) - len(priced),
+        monthly=tuple(MonthlyRevenue(k, totals[k], counts[k]) for k in sorted(totals)),
+        limitation=REVENUE_LIMITATION,
     )
 
 
@@ -97,6 +148,7 @@ def analyse_room_value(bookings: list[Booking]) -> RoomValueAnalysis:
             _value_group("canceled", cancelled, len(stays)),
             _value_group("not_canceled", kept, len(stays)),
         ),
+        room_revenue=_room_revenue(kept),
         formula=FORMULA,
         limitations=LIMITATIONS,
     )

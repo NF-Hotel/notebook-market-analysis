@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from app.application.documents import JsonObject
@@ -38,14 +38,20 @@ class SeriesPoint:
     value: float
     numerator: float | None = None
     denominator: float | None = None
+    low: float | None = None  # the band of a forecast point
+    high: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ChartSeries:
+    """``facts`` are figures stated beside the points (the months of history of a forecast)."""
+
     id: str
     title: str
     unit: str
     points: tuple[SeriesPoint, ...]
+    facts: tuple[float, ...] = ()
+    is_forecast: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,8 +88,8 @@ def _shorten(series: ChartSeries) -> ChartSeries:
         return series
     if _is_monthly(series):
         title = f"{series.title} (latest {MAX_POINTS} of {count} months)"
-        return ChartSeries(series.id, title, series.unit, series.points[-MAX_POINTS:])
-    return ChartSeries(series.id, series.title, series.unit, series.points[:MAX_POINTS])
+        return replace(series, title=title, points=series.points[-MAX_POINTS:])
+    return replace(series, points=series.points[:MAX_POINTS])
 
 
 def _walk(node: Any, path: list[str], found: list[tuple[int, ChartSeries]]) -> None:  # noqa: ANN401 - JSON

@@ -3,14 +3,14 @@
 Everything the guardrail decides is deterministic and listed here.
 
 Claims. ``FORBIDDEN_PHRASES`` are looked up, case-insensitive, at the start of a word (so
-``forecast`` also finds ``forecasts``). A phrase in the executive summary or in a suggestion or
-its evidence rejects the whole insight (``GUARDRAIL_REJECTED``); in an observation it drops that
-observation.
+``forecast`` also finds ``forecasts``). A phrase in the text of a chart rejects the text of that
+chart (``GUARDRAIL_REJECTED``) and no other chart. On the chart of the forecast of the service
+the words of ``FORECAST_PHRASES`` are allowed, because the model may comment on that forecast;
+promises, predictions of its own and causes stay forbidden there too.
 
-Evidence. A suggestion's evidence must name at least one number, else the suggestion is dropped.
-An observation is kept only when its series is one of the charts of the analysis, its evidence
-names at least one number, and every number it names is found in that series (see
-``evidence_is_in_series``).
+Evidence. A text is kept only when its evidence names at least one number and every number it
+names is found in the series of the chart (see ``evidence_is_in_series``); a text that writes a
+number that is not in the series is not kept (see ``names_only_numbers_of``).
 """
 
 from __future__ import annotations
@@ -61,9 +61,16 @@ FORBIDDEN_PHRASES: tuple[str, ...] = (
     "next month",
     "next quarter",
 )
-_FORBIDDEN = re.compile(
-    r"\b(?:" + "|".join(re.escape(p) for p in FORBIDDEN_PHRASES) + r")", re.IGNORECASE
-)
+# The words that describe the forecast of the service; allowed on the chart of that forecast.
+FORECAST_PHRASES: tuple[str, ...] = ("forecast", "projected", "next month")
+
+
+def _phrase_pattern(phrases: Iterable[str]) -> re.Pattern[str]:
+    return re.compile(r"\b(?:" + "|".join(re.escape(p) for p in phrases) + r")", re.IGNORECASE)
+
+
+_FORBIDDEN = _phrase_pattern(FORBIDDEN_PHRASES)
+_FORBIDDEN_ON_FORECAST = _phrase_pattern(p for p in FORBIDDEN_PHRASES if p not in FORECAST_PHRASES)
 # A number as written in text: 1,234  22.3  -5  (not the digits inside a word such as Q3).
 _NUMBER = re.compile(r"(?<![\w.])(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(\s*%)?")
 # A share kept as a fraction (0.223 for 22.3) is accepted with at least this many decimals, so
@@ -72,8 +79,10 @@ _FRACTION_DECIMALS = 2
 _PERCENT = Decimal(100)
 
 
-def makes_forbidden_claim(text: str) -> bool:
-    return _FORBIDDEN.search(text) is not None
+def makes_forbidden_claim(text: str, is_forecast_chart: bool = False) -> bool:
+    """True for a cause, a promise or a prediction; the forecast of the service may be described."""
+    pattern = _FORBIDDEN_ON_FORECAST if is_forecast_chart else _FORBIDDEN
+    return pattern.search(text) is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +128,8 @@ def _allowed_values(series: ChartSeries) -> list[Decimal]:
         for number in (point.value, point.numerator, point.denominator):
             if number is not None:
                 values.append(Decimal(str(number)))
+        values.extend(Decimal(str(n)) for n in (point.low, point.high) if n is not None)
+    values.extend(Decimal(str(fact)) for fact in series.facts)
     return values
 
 
@@ -148,3 +159,10 @@ def evidence_is_in_series(evidence: str, series: ChartSeries) -> bool:
     mentions = _mentions(evidence, labels)
     allowed = _allowed_values(series)
     return bool(mentions) and all(_matches(m, series, allowed) for m in mentions)
+
+
+def names_only_numbers_of(text: str, series: ChartSeries) -> bool:
+    """True when every number the text writes is found in the series (no number is fine)."""
+    labels = [p.label for p in series.points] + [series.id, series.title]
+    allowed = _allowed_values(series)
+    return all(_matches(m, series, allowed) for m in _mentions(text, labels))

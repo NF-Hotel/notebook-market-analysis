@@ -1,4 +1,4 @@
-"""The run paths and result schema 1.1 of openapi/market-contract.yaml (MIL-001, task 1)."""
+"""The run paths and result schema 1.2 of openapi/market-contract.yaml (MIL-001, task 1)."""
 
 import copy
 import json
@@ -41,7 +41,7 @@ def _figure(group: str, numerator: int, denominator: int) -> dict[str, Any]:
 
 
 def _nine_analyses_result() -> dict[str, Any]:
-    """The sample of the web application (six analyses) plus the three analyses of schema 1.1."""
+    """The sample of the web application (six analyses) plus what schema 1.1 and 1.2 add."""
     result = cast("dict[str, Any]", json.loads(SAMPLE.read_text(encoding="utf-8")))
     for analysis in result["analyses"].values():
         analysis.setdefault("formula", "Counts divided by the records used.")
@@ -79,7 +79,39 @@ def _nine_analyses_result() -> dict[str, Any]:
             "matrix": [[1.0, -1.0], [-1.0, None]],
         },
     }
+    result["analyses"]["room_value"]["findings"]["room_revenue"] = _room_revenue()
+    result["forecast"] = _forecast()
+    result["schema_version"] = "1.2"
     return result
+
+
+def _room_revenue() -> dict[str, Any]:
+    return {
+        "status": "available",
+        "unit": "price units of the input",
+        "limitation": "Before taxes, fees, discounts and extras.",
+        "records_used": 3,
+        "records_with_price": 2,
+        "records_without_price": 1,
+        "total": "501.00",
+        "mean": "250.5000",
+        "small_sample": True,
+        "monthly": [{"group": "2024-01", "value": "501.00", "bookings": 2}],
+    }
+
+
+def _forecast() -> dict[str, Any]:
+    months = [{"group": "2024-03", "value": "10.00", "low": "8.00", "high": None}]
+    measure = {"unit": "bookings", "months": months}
+    return {
+        "formula": "The mean of the same calendar month of the history.",
+        "limitations": ["The seasonal pattern repeats."],
+        "history_months": 12,
+        "minimum_history_months": 24,
+        "history_too_short": True,
+        "horizon_months": 6,
+        "measures": {"arrivals": measure, "occupancy": measure, "room_revenue": measure},
+    }
 
 
 def test_contract_describes_the_run_paths() -> None:
@@ -101,9 +133,9 @@ def test_start_run_refuses_with_stable_codes() -> None:
     assert set(responses) == {"202", "400", "401", "409"}
 
 
-def test_result_schema_version_is_1_1() -> None:
+def test_result_schema_version_is_1_2() -> None:
     schema = _contract()["components"]["schemas"]["RunResult"]
-    assert schema["properties"]["schema_version"]["const"] == "1.1"
+    assert schema["properties"]["schema_version"]["const"] == "1.2"
 
 
 def test_sample_result_with_nine_analyses_is_valid() -> None:
@@ -118,7 +150,22 @@ def test_result_without_one_of_the_nine_analyses_is_invalid() -> None:
 
 def test_result_with_another_schema_version_is_invalid() -> None:
     result = copy.deepcopy(_nine_analyses_result())
-    result["schema_version"] = "1.0"
+    result["schema_version"] = "1.1"
+    assert not _validator("RunResult").is_valid(result)
+
+
+def test_result_without_room_revenue_or_forecast_is_invalid() -> None:
+    no_revenue = _nine_analyses_result()
+    del no_revenue["analyses"]["room_value"]["findings"]["room_revenue"]
+    no_forecast = _nine_analyses_result()
+    del no_forecast["forecast"]
+    assert not _validator("RunResult").is_valid(no_revenue)
+    assert not _validator("RunResult").is_valid(no_forecast)
+
+
+def test_forecast_of_more_than_six_months_is_invalid() -> None:
+    result = _nine_analyses_result()
+    result["forecast"]["horizon_months"] = 7
     assert not _validator("RunResult").is_valid(result)
 
 

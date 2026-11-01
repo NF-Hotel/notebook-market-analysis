@@ -1,7 +1,8 @@
-"""The answer format asked from the model, and the check that an answer has it.
+"""The answer format asked from the model for one chart, and the check that an answer has it.
 
-The format is the ``Insight`` of ``openapi/market-contract.yaml`` without the fields the service
-fills itself (status, label, provider, model, generated_at); a test keeps the two in agreement.
+One answer is the text of one chart: a summary and recommendations. The service puts the summary
+in an ``observation`` of the ``Insight`` of ``openapi/market-contract.yaml`` and the
+recommendations in its ``improvement_suggestions``; a test keeps the formats in agreement.
 """
 
 from __future__ import annotations
@@ -13,13 +14,16 @@ from typing import Any
 
 from app.application.documents import JsonObject
 
+MAX_RECOMMENDATIONS = 3
+
 ANSWER_SCHEMA: JsonObject = {
     "type": "object",
-    "required": ["executive_summary", "improvement_suggestions", "observations"],
+    "required": ["summary", "evidence", "recommendations"],
     "additionalProperties": False,
     "properties": {
-        "executive_summary": {"type": "string"},
-        "improvement_suggestions": {
+        "summary": {"type": "string"},
+        "evidence": {"type": "string"},
+        "recommendations": {
             "type": "array",
             "items": {
                 "type": "object",
@@ -28,18 +32,6 @@ ANSWER_SCHEMA: JsonObject = {
                     "suggestion": {"type": "string"},
                     "evidence": {"type": "string"},
                     "sample_size": {"type": "integer"},
-                },
-            },
-        },
-        "observations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["series", "text", "evidence"],
-                "properties": {
-                    "series": {"type": "string"},
-                    "text": {"type": "string"},
-                    "evidence": {"type": "string"},
                 },
             },
         },
@@ -55,17 +47,10 @@ class Suggestion:
 
 
 @dataclass(frozen=True, slots=True)
-class Observation:
-    series: str
-    text: str
-    evidence: str
-
-
-@dataclass(frozen=True, slots=True)
 class Answer:
-    executive_summary: str
+    summary: str
+    evidence: str
     suggestions: tuple[Suggestion, ...]
-    observations: tuple[Observation, ...]
 
 
 def parse_answer(text: str) -> Answer | None:
@@ -76,12 +61,11 @@ def parse_answer(text: str) -> Answer | None:
         return None
     if not isinstance(data, dict):
         return None
-    summary = data.get("executive_summary")
-    suggestions = _items(data.get("improvement_suggestions"), _suggestion)
-    observations = _items(data.get("observations"), _observation)
-    if not isinstance(summary, str) or suggestions is None or observations is None:
+    summary, evidence = data.get("summary"), data.get("evidence")
+    suggestions = _items(data.get("recommendations"), _suggestion)
+    if not isinstance(summary, str) or not isinstance(evidence, str) or suggestions is None:
         return None
-    return Answer(summary, tuple(suggestions), tuple(observations))
+    return Answer(summary, evidence, tuple(suggestions))
 
 
 def _without_fence(text: str) -> str:
@@ -114,12 +98,3 @@ def _suggestion(item: Any) -> Suggestion | None:  # noqa: ANN401 - JSON
     if isinstance(size, bool) or not isinstance(size, int):
         return None
     return Suggestion(suggestion, evidence, size)
-
-
-def _observation(item: Any) -> Observation | None:  # noqa: ANN401 - JSON
-    if not isinstance(item, dict):
-        return None
-    series, text, evidence = (item.get(k) for k in ("series", "text", "evidence"))
-    if not (isinstance(series, str) and isinstance(text, str) and isinstance(evidence, str)):
-        return None
-    return Observation(series, text, evidence)

@@ -50,32 +50,34 @@ def charts_of(request: ModelRequest) -> list[dict[str, Any]]:
 
 
 def answer_json(**changes: Any) -> str:  # noqa: ANN401 - JSON values
+    """An answer about one chart; the default evidence is the first share of the test series."""
     answer: JsonObject = {
-        "executive_summary": "Shares differ between the groups.",
-        "improvement_suggestions": [
+        "summary": "Shares differ between the groups.",
+        "evidence": "24.7",
+        "recommendations": [
             {
                 "suggestion": "Look at the weakest group.",
-                "evidence": "It is 12.5 here.",
+                "evidence": "It is 15.5 here.",
                 "sample_size": 80,
             }
         ],
-        "observations": [],
     }
     answer.update(changes)
     return json.dumps(answer)
 
 
 def well_formed_answer(request: ModelRequest) -> str:
-    """A good answer: one observation per listed chart, naming the first figure of its series."""
-    observations = [
-        {
-            "series": chart["id"],
-            "text": f"{chart['points'][0][0]} is the first group of the chart.",
-            "evidence": f"{chart['points'][0][1]}",
-        }
-        for chart in charts_of(request)
-    ]
-    return answer_json(observations=observations)
+    """A good answer about the one chart of the request, naming the first figure of its series."""
+    charts = charts_of(request)
+    value = charts[0]["points"][0][1] if charts else 1
+    label = charts[0]["points"][0][0] if charts else "the findings"
+    return answer_json(
+        summary=f"{label} is the first group of the chart. It is {value} here.",
+        evidence=f"{value}",
+        recommendations=[
+            {"suggestion": "Look at the first group.", "evidence": f"{value}", "sample_size": 10}
+        ],
+    )
 
 
 def scripted(*answers: str | Exception) -> Responder:

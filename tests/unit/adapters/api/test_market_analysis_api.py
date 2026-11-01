@@ -110,13 +110,13 @@ def test_the_state_follows_queued_running_completed(tmp_path: Path) -> None:
     assert "error_code" not in final
 
 
-def test_the_result_of_a_completed_run_is_schema_1_1_and_valid(service: Service) -> None:
+def test_the_result_of_a_completed_run_is_schema_1_2_and_valid(service: Service) -> None:
     run_id = service.post(request_body()).json()["run_id"]
     service.runner.run_all()
     response = service.get(f"{RUNS}/{run_id}/result")
     assert response.status_code == 200
     result = response.json()
-    assert result["schema_version"] == "1.1"
+    assert result["schema_version"] == "1.2"
     assert len(result["analyses"]) == 9
     _validator().validate(result)
 

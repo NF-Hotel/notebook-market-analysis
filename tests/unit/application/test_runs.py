@@ -92,7 +92,7 @@ def test_the_run_completes_when_the_runner_runs_it() -> None:
     assert done.state is RunState.COMPLETED
     assert done.started_at is not None
     assert done.finished_at is not None
-    assert setup.result.get(run.run_id)["schema_version"] == "1.1"
+    assert setup.result.get(run.run_id)["schema_version"] == "1.2"
 
 
 def test_a_second_start_while_one_is_queued_is_refused() -> None:

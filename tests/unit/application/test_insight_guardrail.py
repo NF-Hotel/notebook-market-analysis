@@ -3,9 +3,11 @@ import pytest
 from app.application.chart_series import ChartSeries, SeriesPoint
 from app.application.insight_guardrail import (
     FORBIDDEN_PHRASES,
+    FORECAST_PHRASES,
     evidence_is_in_series,
     makes_forbidden_claim,
     names_a_number,
+    names_only_numbers_of,
 )
 
 
@@ -97,3 +99,56 @@ def test_evidence_with_a_number_that_is_not_in_the_series_is_not_accepted(eviden
 
 def test_a_fraction_is_accepted_only_for_a_percent_series() -> None:
     assert not evidence_is_in_series("0.247", _series(unit="bookings"))
+
+
+def _forecast_series() -> ChartSeries:
+    points = (
+        SeriesPoint("2025-01", 150.0, low=79.29, high=220.71),
+        SeriesPoint("2025-02", 300.0, low=158.58, high=441.42),
+    )
+    return ChartSeries(
+        "forecast.arrivals", "Forecast of arrivals", "bookings", points, (30.0, 24.0)
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["The forecast is 150.", "The projected value is 150.", "Next month is 150."],
+)
+def test_the_words_that_describe_the_forecast_of_the_service_are_allowed_only_on_its_chart(
+    text: str,
+) -> None:
+    assert makes_forbidden_claim(text)
+    assert not makes_forbidden_claim(text, is_forecast_chart=True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Arrivals will increase.",
+        "This is due to the season.",
+        "We guarantee 150.",
+        "Arrivals are expected to rise next year.",
+        "We predict 150.",
+    ],
+)
+def test_promises_causes_and_own_predictions_are_forbidden_on_the_forecast_chart_too(
+    text: str,
+) -> None:
+    assert makes_forbidden_claim(text, is_forecast_chart=True)
+
+
+def test_the_forecast_phrases_are_forbidden_phrases() -> None:
+    assert set(FORECAST_PHRASES) <= set(FORBIDDEN_PHRASES)
+
+
+def test_the_band_and_the_months_of_history_of_a_forecast_are_figures_of_its_series() -> None:
+    series = _forecast_series()
+    assert evidence_is_in_series("150.00, 79.29, 220.71 and 30 months", series)
+    assert not evidence_is_in_series("150.00 and 999", series)
+
+
+def test_a_text_may_write_no_number_but_not_a_number_that_is_not_in_the_series() -> None:
+    assert names_only_numbers_of("The first group is higher.", _series())
+    assert names_only_numbers_of("No Deposit is 24.7 of 38199.", _series())
+    assert not names_only_numbers_of("No Deposit is 31.4.", _series())
