@@ -12,7 +12,7 @@
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
 | 2026-11-01 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Task 12 and criterion 15: the service builds the Markdown of the texts itself and the model writes plain sentences, a text that the guardrail rejects is asked for once more, and the overall interpretation gets the largest findings of every analysis and the forecast as input; found in the run of 2026-11-01 with `phi4:latest`, where sub-lists were written on one line inside list items, `holidays` and `occupancy` were rejected by chance, and the overall text spoke only of the guest mix; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-009 Go | [86abdf7] |
-| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 13 and criterion 16: the input of the overall interpretation is cut to a size that fits the context window of the model and the service sets the size of that window (`num_ctx`) itself; found in the run of 2026-11-01 where the request was about 25,000 characters, the overall text spoke only of the last analysis and was rejected twice, so the page showed only the text made from the figures; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-010 Go | pending |
+| 2026-11-01 | Accepted | Claude (AI) | AI at the request of the user, not independent | Task 13 and criterion 16: the input of the overall interpretation is cut to a size that fits the context window of the model and the service sets the size of that window (`num_ctx`) itself; found in the run of 2026-11-01 where the request was about 25,000 characters, the overall text spoke only of the last analysis and was rejected twice, so the page showed only the text made from the figures; asked for by S01; accepted by the user in chat on 2026-11-01 after RC-010 Go | [f72de70] |
 
 ---
 
@@ -106,3 +106,4 @@ Give the market analysis service the analysis that the website needs. NFHotel MI
 [SA-001]: ../stakeholder-analysis.md
 [PP-001]: ../project-plan.md
 [86abdf7]: https://github.com/NF-Hotel/notebook-market-analysis/commit/86abdf7502d600a5e2d012add02f4e7a054036b4
+[f72de70]: https://github.com/NF-Hotel/notebook-market-analysis/commit/f72de701c2af51d74288ff4b34dd554d82771551
