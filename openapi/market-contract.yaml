@@ -324,6 +324,34 @@ components:
             provider: {type: string}
             model: {type: string}
             prompt_version: {type: string}
+            overall: {$ref: "#/components/schemas/OverallInsight"}
+    OverallInsight:
+      type: object
+      description: >-
+        The overall interpretation of all analyses and the forecast, in Markdown: key points, what
+        they mean together, recommendations and caveats. With `source: ai` it is one extra request
+        to the model, checked by the same guardrail as the charts (no cause, promise or prediction;
+        numbers only from its input). With `source: figures` it is a short text the service builds
+        from the largest finding of each available analysis (AI off, nothing to read, or the
+        answer was rejected). A rejected answer leaves the analyses as they are.
+      required: [status, source, label, text]
+      properties:
+        status: {type: string, enum: [available]}
+        source: {type: string, enum: [ai, figures]}
+        label: {type: string, description: "`AI-generated` for `ai`; for `figures` it says the text is calculated."}
+        generated_at: {type: string, description: "Only with `source: ai`."}
+        text: {type: string, description: "Markdown."}
+        evidence: {type: string, description: "Only with `source: ai`: the numbers the text rests on."}
+        recommendations:
+          type: array
+          description: "Only with `source: ai`; 2 to 4 items, the text of each is Markdown."
+          items:
+            type: object
+            required: [suggestion, evidence, sample_size]
+            properties:
+              suggestion: {type: string}
+              evidence: {type: string}
+              sample_size: {type: integer}
     Analysis:
       type: object
       required: [status, findings, formula, limitations]
@@ -480,14 +508,14 @@ components:
         provider: {type: [string, "null"]}
         model: {type: [string, "null"]}
         generated_at: {type: [string, "null"]}
-        executive_summary: {type: [string, "null"], description: "The summaries of the charts, joined in the order of the charts."}
+        executive_summary: {type: [string, "null"], description: "Markdown: a list with one item for each chart, naming the chart in bold, in the order of the charts. Raw HTML is removed before storage."}
         improvement_suggestions:
           type: array
           items:
             type: object
             required: [suggestion, evidence, sample_size]
             properties:
-              suggestion: {type: string}
+              suggestion: {type: string, description: Markdown.}
               evidence: {type: string}
               sample_size: {type: integer}
               series:
@@ -495,7 +523,7 @@ components:
                 description: The chart the recommendation is about (one recommendation list for each chart).
         observations:
           type: array
-          description: One per chart that has text; `text` is the summary of that chart (2-3 sentences), written in its own request to the model.
+          description: One per chart that has text; `text` is the summary of that chart in Markdown (a short lead paragraph, a list when there are several points), written in its own request to the model.
           items:
             type: object
             required: [series, text, evidence]

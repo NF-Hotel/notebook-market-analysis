@@ -11,6 +11,11 @@ promises, predictions of its own and causes stay forbidden there too.
 Evidence. A text is kept only when its evidence names at least one number and every number it
 names is found in the series of the chart (see ``evidence_is_in_series``); a text that writes a
 number that is not in the series is not kept (see ``names_only_numbers_of``).
+
+A 4-digit year written right after a month name ("April 2026", "from July 2024 to December 2026")
+is a date and is not checked. The number of points of the series, and the two counts of a title
+such as "latest 30 of 102 months", are figures of the series. Every other number is checked, also
+one that stands beside a year.
 """
 
 from __future__ import annotations
@@ -73,6 +78,14 @@ _FORBIDDEN = _phrase_pattern(FORBIDDEN_PHRASES)
 _FORBIDDEN_ON_FORECAST = _phrase_pattern(p for p in FORBIDDEN_PHRASES if p not in FORECAST_PHRASES)
 # A number as written in text: 1,234  22.3  -5  (not the digits inside a word such as Q3).
 _NUMBER = re.compile(r"(?<![\w.])(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(\s*%)?")
+# A year written after a month name ("April 2026", "Jul 2025") is a date, not a figure. The month
+# name is case-sensitive so that the verb "may" does not hide a number.
+_MONTH_YEAR = re.compile(
+    r"\b((?:January|February|March|April|May|June|July|August|September|October|November"
+    r"|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\.?)\s+(?:19|20)\d{2}(?!\d|[.,]\d)"
+)
+# The title that chart_series gives a long monthly series: "(latest 30 of 102 months)".
+_SHORTENED_TITLE = re.compile(r"latest (\d+) of (\d+) months")
 # A share kept as a fraction (0.223 for 22.3) is accepted with at least this many decimals, so
 # that a stray 0 or 1 does not match every share.
 _FRACTION_DECIMALS = 2
@@ -98,6 +111,7 @@ def _label_pattern(label: str) -> re.Pattern[str]:
 
 
 def _mentions(text: str, labels: Iterable[str]) -> list[_Mention]:
+    text = _MONTH_YEAR.sub(r"\1", text)
     # The digits of a group label ("2019-07", "0-30 days") are not figures of the model.
     for label in sorted(set(labels), key=len, reverse=True):
         if label:
@@ -112,6 +126,11 @@ def _mentions(text: str, labels: Iterable[str]) -> list[_Mention]:
 def _decimals(value: Decimal) -> int:
     exponent = value.as_tuple().exponent
     return -exponent if isinstance(exponent, int) and exponent < 0 else 0
+
+
+def numbers_in(text: str) -> tuple[float, ...]:
+    """The numbers written in ``text`` (dates after a month name left out)."""
+    return tuple(float(m.value) for m in _mentions(text, ()))
 
 
 def names_a_number(text: str) -> bool:
@@ -130,6 +149,11 @@ def _allowed_values(series: ChartSeries) -> list[Decimal]:
                 values.append(Decimal(str(number)))
         values.extend(Decimal(str(n)) for n in (point.low, point.high) if n is not None)
     values.extend(Decimal(str(fact)) for fact in series.facts)
+    # The number of points and the counts of the title ("latest 30 of 102 months") are stated too.
+    if series.points:
+        values.append(Decimal(len(series.points)))
+    for count in _SHORTENED_TITLE.findall(series.title):
+        values.extend(Decimal(n) for n in count)
     return values
 
 

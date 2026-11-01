@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 import yaml
 
-from app.application.insight_answer import ANSWER_SCHEMA, parse_answer
+from app.application.insight_answer import ANSWER_SCHEMA, parse_answer, strip_html
 from tests.unit.ai_fakes import answer_json
 
 CONTRACT = Path(__file__).parents[3] / "openapi" / "market-contract.yaml"
@@ -70,3 +70,19 @@ def test_a_fenced_answer_is_parsed() -> None:
 )
 def test_an_answer_that_is_not_of_the_schema_is_not_parsed(text: str) -> None:
     assert parse_answer(text) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("<script>alert(1)</script>Hello", "Hello"),
+        ("<SCRIPT src=x>unclosed", ""),
+        ("a <b>bold</b> <!-- note --> word", "a bold  word"),
+        ("share < 5 and 3 > 2", "share < 5 and 3 > 2"),
+        ("- **Bold** list", "- **Bold** list"),
+    ],
+)
+def test_strip_html_removes_tags_scripts_and_comments_and_keeps_markdown(
+    text: str, expected: str
+) -> None:
+    assert strip_html(text) == expected

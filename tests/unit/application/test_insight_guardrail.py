@@ -152,3 +152,51 @@ def test_a_text_may_write_no_number_but_not_a_number_that_is_not_in_the_series()
     assert names_only_numbers_of("The first group is higher.", _series())
     assert names_only_numbers_of("No Deposit is 24.7 of 38199.", _series())
     assert not names_only_numbers_of("No Deposit is 31.4.", _series())
+
+
+def _monthly_series() -> ChartSeries:
+    points = tuple(
+        SeriesPoint(f"2025-{month:02d}", value, num, 156686.0)
+        for month, value, num in ((4, 1.3, 2037.0), (7, 0.6, 940.0))
+    )
+    return ChartSeries("monthly", "Arrivals (latest 30 of 102 months)", "%", points)
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "April 2026: 1.3%, July 2025: 0.6%, Denominator: 156,686 records.",
+        "from July 2024 to December 2026, 1.3%",
+        "Jul 2025 at 0.6%",
+        "the latest 30 of 102 months, 1.3%",
+        "30 months, 2 points, 1.3%",
+    ],
+)
+def test_a_year_after_a_month_name_and_the_counts_of_the_title_are_not_checked(
+    evidence: str,
+) -> None:
+    assert evidence_is_in_series(evidence, _monthly_series())
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "April 2026 at 1.4%",  # a made-up figure next to a year
+        "In 2026 it was 1.3% and 99 elsewhere",
+        "1.3% in 2026",  # a year with no month name
+        "April 2026 and 2027 at 1.3%",  # only the year right after the month is a date
+        "April 12345 at 1.3%",
+        "may 2026 at 1.3%",  # the verb "may" is not a month name
+    ],
+)
+def test_a_number_beside_a_year_or_a_year_that_is_not_after_a_month_is_still_checked(
+    text: str,
+) -> None:
+    assert not evidence_is_in_series(text, _monthly_series())
+    assert not names_only_numbers_of(text, _monthly_series())
+
+
+def test_the_counts_of_a_title_are_figures_only_when_the_title_has_them() -> None:
+    plain = ChartSeries("c", "Arrivals", "%", _monthly_series().points)
+    assert not names_only_numbers_of("It is 102.", plain)
+    assert names_only_numbers_of("It is 102.", _monthly_series())

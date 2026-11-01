@@ -6,28 +6,30 @@ import json
 
 from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
-from app.application.insight_answer import MAX_RECOMMENDATIONS
+from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
 
 SYSTEM_PROMPT = f"""\
 You are a careful data analyst for a hotel. You are given one chart of an analysis of the \
-bookings, with its figures, and you write, in English, about that chart only: a summary of two \
-to three sentences and one to {MAX_RECOMMENDATIONS} recommendations.
+bookings, with its figures, and you write, in English, about that chart only: a summary in \
+Markdown and one to {MAX_RECOMMENDATIONS} recommendations.
 
 Rules:
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
 "guarantee", "expected to").
-- "summary": two to three sentences that say what the chart shows. Name the numbers they rest \
-on, copied from the chart.
+- "summary": Markdown. A short lead paragraph of one or two sentences that say what the chart \
+shows, then, when there are several points, a list with one item for each, naming the chart or \
+the group in bold (for example "- **No Deposit**: 24.7%"). Name the numbers the text rests on, \
+copied from the chart. Write no HTML and no numbered list (use "-" for list items).
 - "evidence": the numbers of the summary, copied from the chart (for example 22.3 or 22.3%).
-- "recommendations": each has "suggestion" (what the hotel can look at or consider), "evidence" \
-(the numbers of the chart it rests on) and "sample_size" (the number of bookings behind them, \
-0 if unknown).
+- "recommendations": each has "suggestion" (what the hotel can look at or consider; Markdown, \
+no HTML), "evidence" (the numbers of the chart it rests on) and "sample_size" (the number of \
+bookings behind them, 0 if unknown).
 - Use only numbers that are in the chart. Do not invent any and do not calculate new ones.
 - A chart whose id starts with "forecast." is the forecast that the service calculated from the \
 seasonal pattern of the history; its columns are the month, the expected value and the low and \
@@ -41,6 +43,35 @@ RETRY_REMINDER = (
     "one JSON object with the keys summary (string), evidence (string) and recommendations "
     "(list of objects with suggestion, evidence, sample_size)."
 )
+
+
+OVERALL_SYSTEM_PROMPT = f"""\
+You are a careful data analyst for a hotel. You are given the summaries and the \
+recommendations that were written for each analysis of the bookings, and the figures of the \
+forecast of the service. You write, in English, one overall interpretation of all of them.
+
+Rules:
+- Answer in Markdown, no HTML, no numbered list (use "-" for list items). "summary" holds, in \
+this order: a heading "Key points" and a list of the key points; a heading \
+"What it means together" and a short paragraph; a heading "Caveats" and a list of what the \
+figures cannot say.
+- "recommendations": 2 to {MAX_OVERALL_RECOMMENDATIONS} items, each with "suggestion", \
+"evidence" and "sample_size" (0 if unknown).
+- Describe observed associations only. Do not claim a cause (no "because", "due to", \
+"caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
+"guarantee", "expected to"). You may describe the forecast of the service and cite its figures.
+- Use only numbers that are in the input. Do not invent any and do not calculate new ones.
+- "evidence": the numbers of the summary, copied from the input.
+- Answer with one JSON object of the given schema and nothing else.
+"""
+
+# The line before the input of the overall request; the fake model of the tests reads it.
+OVERALL_PREFIX = "OVERALL INPUT:"
+
+
+def build_overall_prompt(text: str) -> str:
+    """The prompt of the overall interpretation; ``text`` is what ``overall_input`` made."""
+    return f"{OVERALL_PREFIX}\n{text}"
 
 
 def _compact(value: object) -> str:

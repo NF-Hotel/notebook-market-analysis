@@ -6,14 +6,18 @@ Med `insights=true` beder tjenesten den indstillede model (`AI_PROVIDER` med `OL
 
 ## Hvordan der spørges
 
-- Ét kald pr. graf. Svaret har et resumé på to til tre sætninger og én til tre anbefalinger, hver med de tal, den bygger på.
+- Ét kald pr. graf. Svaret har et resumé og én til tre anbefalinger, hver med de tal, den bygger på. Tekster er Markdown: en grafs resumé er et kort indledende afsnit og, ved flere punkter, en liste, der nævner grafen eller gruppen med fed. Rå HTML i et svar (tags, kommentarer, `script` og `style` med indhold) fjernes før guardrail og før lagring.
 - Prognosen gives til modellen som en graf, så den må kommentere den.
-- Pr. analyse beholder resultatet `executive_summary`, `improvement_suggestions` og `observations` (én pr. graf, koblet med dens `series`-id). En graf, hvis tekst afvises, mister kun sin egen tekst.
-- Prompten har en version (`PROMPT_VERSION`).
+- Pr. analyse beholder resultatet `executive_summary` (en Markdown-liste med et punkt pr. graf, grafens navn med fed), `improvement_suggestions` og `observations` (én pr. graf, koblet med dens `series`-id). En graf, hvis tekst afvises, mister kun sin egen tekst.
+- Prompten har en version (`PROMPT_VERSION`, nu `3`).
+
+## Samlet fortolkning
+
+Efter graferne får modellen ét ekstra kald med resuméer og anbefalinger fra de analyser, der har tekst, og prognosens tal (ikke bookingerne). Den skriver Markdown: hovedpunkter, hvad de betyder samlet, 2 til 4 anbefalinger og forbehold. Teksten gemmes som `insights.overall` med `source: ai` og mærkaten `AI-generated`. Samme guardrail gælder, og de tal, den må nævne, er tallene i dens input. Er AI slået fra, har ingen analyse tekst, eller afvises svaret, er `insights.overall` en kort tekst bygget af det største fund i hver tilgængelig analyse, med `source: figures`. En afvist samlet tekst ændrer aldrig analyserne.
 
 ## Guardrail
 
-En tekst afvises, når den bruger en årsagsfrase ("because", "due to", "leads to"), et løfte ("will increase", "guarantee") eller en forudsigelse af sig selv. På prognosegrafen er ordene om tjenestens egen prognose tilladt. En tekst afvises også, når dens belæg ikke nævner et tal eller nævner et tal, der ikke står i grafens serie. Listen er `FORBIDDEN_PHRASES` i `src/app/application/insight_guardrail.py`.
+En tekst afvises, når den bruger en årsagsfrase ("because", "due to", "leads to"), et løfte ("will increase", "guarantee") eller en forudsigelse af sig selv. På prognosegrafen er ordene om tjenestens egen prognose tilladt. En tekst afvises også, når dens belæg ikke nævner et tal eller nævner et tal, der ikke står i grafens serie. To ting tæller ikke som tal: et 4-cifret årstal lige efter et månedsnavn ("April 2026", "Jul 2025", "fra July 2024 til December 2026"), og seriens antal punkter samt de to antal i en titel som "latest 30 of 102 months" (disse er tilladt). Et opfundet tal ved siden af et årstal afvises stadig. Listen er `FORBIDDEN_PHRASES` i `src/app/application/insight_guardrail.py`.
 
 ## Hvorfor en indsigt kan mangle
 
