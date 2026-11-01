@@ -1,4 +1,4 @@
-"""The findings of each analysis as plain data in the shape of result schema 1.1.
+"""The findings of each analysis as plain data in the shape of result schema 1.2.
 
 The free text (``summary``, ``statement``, ``note``) is short, factual English built from the
 figures; it makes no claim the figures do not hold.
@@ -23,13 +23,14 @@ from app.domain.analyses.holiday_effect import (
 from app.domain.analyses.lead_time import LeadTimeAnalysis, LeadTimeGroup
 from app.domain.analyses.occupancy import OccupancyAnalysis
 from app.domain.analyses.occupancy_on_holidays import OccupancyOnHolidaysAnalysis
-from app.domain.analyses.room_value import EstimatedValueGroup, RoomValueAnalysis
+from app.domain.analyses.room_value import EstimatedValueGroup, RoomRevenue, RoomValueAnalysis
 from app.domain.analyses.seasonality import (
     PeriodFigure,
     SeasonalityAnalysis,
     SeasonalityMeasure,
 )
 from app.domain.figures import Figure, MeanValue
+from app.domain.forecast import Forecast, MeasureForecast
 from app.domain.holidays import HolidayCalendar
 from app.domain.period import Period
 
@@ -325,6 +326,31 @@ def _value_group_data(group: EstimatedValueGroup) -> JsonObject:
     }
 
 
+def _room_revenue_data(revenue: RoomRevenue) -> JsonObject:
+    mean = _decimal_text(revenue.per_booking.value)
+    return {
+        "status": _status(revenue.per_booking.count > 0),
+        "unit": ESTIMATE_UNIT,
+        "limitation": revenue.limitation,
+        "records_used": revenue.records_used,
+        "records_with_price": revenue.per_booking.count,
+        "records_without_price": revenue.records_without_price,
+        "total": _decimal_text(revenue.total),
+        "mean": mean,
+        "small_sample": revenue.per_booking.small_sample,
+        "monthly": [
+            {"group": m.month, "value": _decimal_text(m.total), "bookings": m.bookings}
+            for m in revenue.monthly
+        ],
+        "summary": (
+            f"Room revenue of {revenue.per_booking.count} bookings that are not cancelled: total "
+            f"{_decimal_text(revenue.total)}, "
+            f"{'no mean' if mean is None else f'mean {mean}'} per booking, in the price units of "
+            "the input, before taxes, fees, discounts and extras."
+        ),
+    }
+
+
 def room_value_findings(analysis: RoomValueAnalysis) -> JsonObject:
     return {
         "estimate": {
@@ -350,6 +376,7 @@ def room_value_findings(analysis: RoomValueAnalysis) -> JsonObject:
             "overall": _value_group_data(analysis.overall),
             "groups": [_value_group_data(g) for g in analysis.by_cancellation_status],
         },
+        "room_revenue": _room_revenue_data(analysis.room_revenue),
     }
 
 
@@ -459,4 +486,34 @@ def correlations_findings(analysis: CorrelationsAnalysis) -> JsonObject:
             f"Spearman rank correlation between {len(analysis.fields)} fields, each pair over "
             "the bookings that have both values; a correlation is not a cause."
         ),
+    }
+
+
+# --- forecast ----------------------------------------------------------------------------
+
+
+def _measure_forecast_data(measure: MeasureForecast) -> JsonObject:
+    return {
+        "unit": measure.unit,
+        "months": [
+            {
+                "group": p.month,
+                "value": _decimal_text(p.expected),
+                "low": _decimal_text(p.low),
+                "high": _decimal_text(p.high),
+            }
+            for p in measure.points
+        ],
+    }
+
+
+def forecast_findings(forecast: Forecast) -> JsonObject:
+    return {
+        "formula": forecast.formula,
+        "limitations": list(forecast.limitations),
+        "history_months": forecast.history_months,
+        "minimum_history_months": forecast.minimum_history_months,
+        "history_too_short": forecast.history_too_short,
+        "horizon_months": forecast.horizon_months,
+        "measures": {m.measure: _measure_forecast_data(m) for m in forecast.measures},
     }

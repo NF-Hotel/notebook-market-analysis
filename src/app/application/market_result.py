@@ -1,4 +1,5 @@
-"""Builds the result document of a run (result schema 1.1) from the nine analyses.
+"""Builds the result document of a run (result schema 1.2) from the nine analyses
+and the forecast.
 
 The function is deterministic: the id and the time of the result are passed in.
 """
@@ -17,6 +18,7 @@ from app.application.findings import (
     cancellations_findings,
     correlations_findings,
     date_range_data,
+    forecast_findings,
     guest_mix_findings,
     holidays_findings,
     lead_time_findings,
@@ -25,11 +27,12 @@ from app.application.findings import (
     room_value_findings,
     seasonality_findings,
 )
+from app.application.forecast_charts import FORECAST_KEY, forecast_for_analysis
 from app.application.ports.insight_provider import InsightProvider
 from app.domain.booking import OPTIONAL_FIELDS, Booking
 from app.domain.holidays import HolidayCalendar
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 INPUT_SOURCE = "supplied"
 INPUT_REFERENCE = "request-body"
 NO_LEAD_TIME = "NO_LEAD_TIME"
@@ -140,11 +143,19 @@ def _data_quality(bookings: list[Booking], result: MarketAnalysis) -> JsonObject
     }
 
 
-def _add_insights(analyses: dict[str, JsonObject], provider: InsightProvider) -> bool:
+def _with_forecast(name: str, analysis: JsonObject, forecast: JsonObject) -> JsonObject:
+    """The analysis as the provider reads it: with its part of the forecast, if it has one."""
+    part = forecast_for_analysis(name, forecast)
+    return analysis if part is None else {**analysis, FORECAST_KEY: part}
+
+
+def _add_insights(
+    analyses: dict[str, JsonObject], forecast: JsonObject, provider: InsightProvider
+) -> bool:
     """Add the insight to every analysis; True when some insight is unavailable."""
     any_unavailable = False
     for name, analysis in analyses.items():
-        insight = provider.insight_for(name, analysis)
+        insight = provider.insight_for(name, _with_forecast(name, analysis, forecast))
         analysis["insight"] = insight
         any_unavailable = any_unavailable or insight.get("status") != AVAILABLE
     return any_unavailable
@@ -160,6 +171,7 @@ def build_market_result(
 ) -> JsonObject:
     """The result document. ``insights`` is None when no insight was asked for."""
     analyses = _analyses(result, calendar)
+    forecast = forecast_findings(result.forecast)
     notices: list[JsonObject] = []
     if any(a["status"] == UNAVAILABLE for a in analyses.values()):
         notices.append(
@@ -168,7 +180,7 @@ def build_market_result(
     insights_section: JsonObject = {"requested": insights is not None}
     if insights is not None:
         insights_section.update(insights.info())
-        if _add_insights(analyses, insights):
+        if _add_insights(analyses, forecast, insights):
             notices.append(
                 {
                     "code": INSIGHTS_UNAVAILABLE,
@@ -190,6 +202,7 @@ def build_market_result(
         },
         "data_quality": _data_quality(bookings, result),
         "analyses": analyses,
+        "forecast": forecast,
         "notices": notices,
         "insights": insights_section,
     }

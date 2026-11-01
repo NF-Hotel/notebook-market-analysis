@@ -1,4 +1,4 @@
-"""Use case: the nine analyses of a list of bookings."""
+"""Use case: the nine analyses and the forecast of a list of bookings."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from app.domain.analyses.room_value import RoomValueAnalysis, analyse_room_value
 from app.domain.analyses.seasonality import SeasonalityAnalysis, analyse_seasonality
 from app.domain.booking import Booking, missing_counts
 from app.domain.errors import InvalidRequest
+from app.domain.forecast import Forecast, forecast_market
 from app.domain.holidays import HolidayCalendar
 from app.domain.period import Period
 
@@ -41,6 +42,7 @@ class MarketAnalysis:
     occupancy: OccupancyAnalysis
     occupancy_on_holidays: OccupancyOnHolidaysAnalysis
     correlations: CorrelationsAnalysis
+    forecast: Forecast
 
 
 def analyse_market(
@@ -53,6 +55,8 @@ def analyse_market(
     if not bookings:
         raise InvalidRequest("at least one booking is needed")
     validate_room_count(room_count)
+    occupancy = analyse_occupancy(bookings, room_count, period)
+    room_value = analyse_room_value(bookings)
     return MarketAnalysis(
         record_count=len(bookings),
         missing_counts=missing_counts(bookings),
@@ -60,9 +64,10 @@ def analyse_market(
         holidays=analyse_holidays(bookings, calendar),
         seasonality=analyse_seasonality(bookings),
         cancellations=analyse_cancellations(bookings),
-        room_value=analyse_room_value(bookings),
+        room_value=room_value,
         guest_mix=analyse_guest_mix(bookings),
-        occupancy=analyse_occupancy(bookings, room_count, period),
+        occupancy=occupancy,
         occupancy_on_holidays=analyse_occupancy_on_holidays(bookings, room_count, calendar, period),
         correlations=analyse_correlations(bookings),
+        forecast=forecast_market(bookings, occupancy, room_value),
     )

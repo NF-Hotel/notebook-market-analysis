@@ -1,38 +1,45 @@
-"""The prompt of one analysis: what the model is told and what figures it is given."""
+"""The prompt of one chart: what the model is told and what figures it is given."""
 
 from __future__ import annotations
 
 import json
 
-from app.application.chart_series import MAX_SERIES, ChartSeries
+from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
+from app.application.insight_answer import MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "1"
-# The line that holds the charts; the fake model of the tests reads it.
+PROMPT_VERSION = "2"
+# The line that holds the chart; the fake model of the tests reads it. It is a list of the one
+# chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
 
 SYSTEM_PROMPT = f"""\
-You are a careful data analyst for a hotel. You read the figures of one analysis of the \
-bookings and write, in English, an executive summary, improvement suggestions and one \
-observation for every chart.
+You are a careful data analyst for a hotel. You are given one chart of an analysis of the \
+bookings, with its figures, and you write, in English, about that chart only: a summary of two \
+to three sentences and one to {MAX_RECOMMENDATIONS} recommendations.
 
 Rules:
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
-"caused by") and do not forecast or promise (no "will increase", "guarantee").
-- Every suggestion has "evidence": the numbers it rests on, copied from the figures, and \
-"sample_size": the number of bookings behind them (0 if unknown).
-- Write one observation for each chart listed, at most {MAX_SERIES}. Its "series" is the id of \
-the chart exactly as listed, its "text" says what you see in that series, and its "evidence" \
-names the numbers from that series (as listed, for example 22.3 or 22.3%).
-- Use only numbers that are in the figures. Do not invent any.
+"caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
+"guarantee", "expected to").
+- "summary": two to three sentences that say what the chart shows. Name the numbers they rest \
+on, copied from the chart.
+- "evidence": the numbers of the summary, copied from the chart (for example 22.3 or 22.3%).
+- "recommendations": each has "suggestion" (what the hotel can look at or consider), "evidence" \
+(the numbers of the chart it rests on) and "sample_size" (the number of bookings behind them, \
+0 if unknown).
+- Use only numbers that are in the chart. Do not invent any and do not calculate new ones.
+- A chart whose id starts with "forecast." is the forecast that the service calculated from the \
+seasonal pattern of the history; its columns are the month, the expected value and the low and \
+high of the band. You may describe it and cite its figures, and say so when the history is too \
+short. Do not make a forecast of your own and do not promise that it will come true.
 - Answer with one JSON object of the given schema and nothing else.
 """
 
 RETRY_REMINDER = (
     "Your previous answer was not valid JSON of the required schema. Answer again with only "
-    "one JSON object with the keys executive_summary (string), improvement_suggestions (list of "
-    "objects with suggestion, evidence, sample_size) and observations (list of objects with "
-    "series, text, evidence)."
+    "one JSON object with the keys summary (string), evidence (string) and recommendations "
+    "(list of objects with suggestion, evidence, sample_size)."
 )
 
 
@@ -40,25 +47,47 @@ def _compact(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
+def _columns(series: ChartSeries) -> tuple[list[str], list[list[object]]]:
+    if series.is_forecast:
+        rows: list[list[object]] = [[p.label, p.value, p.low, p.high] for p in series.points]
+        return ["label", "expected", "low", "high"], rows
+    if any(p.numerator is not None for p in series.points):
+        rows = [[p.label, p.value, p.numerator, p.denominator] for p in series.points]
+        return ["label", "value", "numerator", "denominator"], rows
+    return ["label", "value"], [[p.label, p.value] for p in series.points]
+
+
 def _chart(series: ChartSeries) -> JsonObject:
-    return {
+    columns, rows = _columns(series)
+    chart: JsonObject = {
         "id": series.id,
         "title": series.title,
         "unit": series.unit,
-        "points": [[p.label, p.value] for p in series.points],
+        "columns": columns,
+        "points": rows,
     }
+    if series.is_forecast:
+        months, minimum = series.facts
+        chart["history_months"] = int(months)
+        chart["history_too_short"] = months < minimum
+    return chart
 
 
-def build_user_prompt(name: str, analysis: JsonObject, charts: list[ChartSeries]) -> str:
-    """The figures of the analysis ``name`` and the charts the model may observe."""
+def build_user_prompt(name: str, analysis: JsonObject, chart: ChartSeries | None) -> str:
+    """The prompt for ``chart`` of the analysis ``name``.
+
+    An analysis without a chart is asked once, about its findings as a whole (``chart`` is None).
+    """
     limitations = analysis.get("limitations") or []
-    return "\n".join(
-        [
-            f"Analysis: {name}",
-            f"Formula: {analysis.get('formula', '')}",
-            f"Limitations: {_compact(limitations)}",
-            f"Findings: {_compact(analysis.get('findings', {}))}",
-            "Write one observation for each of these charts, with the id as given:",
-            f"{CHARTS_PREFIX}{_compact([_chart(c) for c in charts])}",
-        ]
-    )
+    lines = [
+        f"Analysis: {name}",
+        f"Formula: {analysis.get('formula', '')}",
+        f"Limitations: {_compact(limitations)}",
+    ]
+    if chart is None:
+        lines.append(f"Findings: {_compact(analysis.get('findings', {}))}")
+        lines.append("This analysis has no chart. Write about its findings as a whole.")
+    else:
+        lines.append("Write about this chart only:")
+    lines.append(f"{CHARTS_PREFIX}{_compact([] if chart is None else [_chart(chart)])}")
+    return "\n".join(lines)

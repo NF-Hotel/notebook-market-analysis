@@ -13,5 +13,9 @@ class InsightProvider(Protocol):
         ...
 
     def insight_for(self, name: str, analysis: JsonObject) -> JsonObject:
-        """The ``Insight`` of the contract for the analysis ``name``; never raises."""
+        """The ``Insight`` of the contract for the analysis ``name``; never raises.
+
+        ``analysis`` may carry a ``forecast``: the part of the forecast of the service that
+        belongs to it (see ``forecast_for_analysis``); it is not part of the stored analysis.
+        """
         ...

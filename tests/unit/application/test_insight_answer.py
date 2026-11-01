@@ -25,23 +25,27 @@ def _without_descriptions(node: Any) -> Any:  # noqa: ANN401 - schema tree
 
 def test_the_answer_schema_agrees_with_the_insight_of_the_contract() -> None:
     properties = _contract_insight()["properties"]
-    asked = {k: v for k, v in properties.items() if k not in SERVICE_FIELDS}
-    assert set(ANSWER_SCHEMA["properties"]) == set(asked)
-    for name in ("improvement_suggestions", "observations"):
-        assert ANSWER_SCHEMA["properties"][name] == _without_descriptions(asked[name])
-    assert ANSWER_SCHEMA["properties"]["executive_summary"] == {"type": "string"}
-    assert asked["executive_summary"]["type"] == ["string", "null"]
-    assert set(ANSWER_SCHEMA["required"]) == set(asked)
+    suggestion = _without_descriptions(properties["improvement_suggestions"]["items"])
+    observation = properties["observations"]["items"]["properties"]
+    asked = ANSWER_SCHEMA["properties"]["recommendations"]["items"]
+    # The service adds the chart (`series`) to each recommendation and to the observation.
+    assert set(suggestion["properties"]) - {"series"} == set(asked["properties"])
+    assert {k: v for k, v in suggestion["properties"].items() if k != "series"} == asked[
+        "properties"
+    ]
+    assert suggestion["required"] == asked["required"]
+    assert {"text", "evidence"} <= set(observation)
+    assert ANSWER_SCHEMA["properties"]["summary"] == {"type": "string"}
+    assert ANSWER_SCHEMA["properties"]["evidence"] == {"type": "string"}
+    assert set(ANSWER_SCHEMA["required"]) == {"summary", "evidence", "recommendations"}
 
 
 def test_a_well_formed_answer_is_parsed() -> None:
-    answer = parse_answer(
-        answer_json(observations=[{"series": "a.groups", "text": "t", "evidence": "1"}])
-    )
+    answer = parse_answer(answer_json())
     assert answer is not None
-    assert answer.executive_summary == "Shares differ between the groups."
+    assert answer.summary == "Shares differ between the groups."
+    assert answer.evidence == "24.7"
     assert answer.suggestions[0].sample_size == 80
-    assert answer.observations[0].series == "a.groups"
 
 
 def test_a_fenced_answer_is_parsed() -> None:
@@ -54,15 +58,14 @@ def test_a_fenced_answer_is_parsed() -> None:
         "",
         "not json",
         "[]",
-        '{"executive_summary": 1, "improvement_suggestions": [], "observations": []}',
-        '{"executive_summary": "x", "observations": []}',
-        '{"executive_summary": "x", "improvement_suggestions": [], "observations": [1]}',
-        '{"executive_summary": "x", "observations": [],'
-        ' "improvement_suggestions": [{"suggestion": "s", "evidence": "e", "sample_size": "3"}]}',
-        '{"executive_summary": "x", "observations": [],'
-        ' "improvement_suggestions": [{"suggestion": "s", "evidence": "e", "sample_size": true}]}',
-        '{"executive_summary": "x", "improvement_suggestions": [],'
-        ' "observations": [{"series": "a", "text": "t"}]}',
+        '{"summary": 1, "evidence": "1", "recommendations": []}',
+        '{"summary": "x", "recommendations": []}',
+        '{"summary": "x", "evidence": 1, "recommendations": []}',
+        '{"summary": "x", "evidence": "1", "recommendations": [1]}',
+        '{"summary": "x", "evidence": "1",'
+        ' "recommendations": [{"suggestion": "s", "evidence": "e", "sample_size": "3"}]}',
+        '{"summary": "x", "evidence": "1",'
+        ' "recommendations": [{"suggestion": "s", "evidence": "e", "sample_size": true}]}',
     ],
 )
 def test_an_answer_that_is_not_of_the_schema_is_not_parsed(text: str) -> None:

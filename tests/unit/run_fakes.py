@@ -74,6 +74,7 @@ class RecordingInsightProvider:
 
     def __init__(self, on_call: Callable[[], None] | None = None) -> None:
         self.names: list[str] = []
+        self.forecast_of: dict[str, str] = {}
         self.on_call = on_call
 
     def info(self) -> dict[str, str]:
@@ -81,6 +82,9 @@ class RecordingInsightProvider:
 
     def insight_for(self, name: str, analysis: JsonObject) -> JsonObject:
         self.names.append(name)
+        forecast = analysis.get("forecast")
+        if forecast is not None:
+            self.forecast_of[name] = forecast["measure"]
         if self.on_call is not None:
             self.on_call()
         return {"status": "available", "executive_summary": f"About {name}."}

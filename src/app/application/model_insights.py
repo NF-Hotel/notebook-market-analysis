@@ -1,18 +1,31 @@
-"""The AI insight of an analysis, asked from a model and checked by the guardrail."""
+"""The AI insight of an analysis: one request to the model for each chart, checked by the guardrail.
+
+A chart whose text is rejected, or whose answer is bad, loses only its own text; the other charts
+of the analysis keep theirs. The insight of an analysis is unavailable only when no chart has text.
+"""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 
 from app.application.chart_series import ChartSeries, chart_series
 from app.application.documents import JsonObject
-from app.application.insight_answer import ANSWER_SCHEMA, Answer, parse_answer
+from app.application.forecast_charts import FORECAST_KEY, forecast_chart
+from app.application.insight_answer import (
+    ANSWER_SCHEMA,
+    MAX_RECOMMENDATIONS,
+    Answer,
+    Suggestion,
+    parse_answer,
+)
 from app.application.insight_guardrail import (
     evidence_is_in_series,
     makes_forbidden_claim,
     names_a_number,
+    names_only_numbers_of,
 )
 from app.application.insight_prompt import (
     PROMPT_VERSION,
@@ -37,6 +50,8 @@ GUARDRAIL_REJECTED = "GUARDRAIL_REJECTED"
 MODEL_ERROR = "MODEL_ERROR"
 ANALYSIS_UNAVAILABLE = "ANALYSIS_UNAVAILABLE"
 _ATTEMPTS = 2  # the request and one retry on a bad structure
+# A model that timed out or failed is not asked again for the rest of the analysis.
+_STOPS_THE_ANALYSIS = frozenset({TIMEOUT, MODEL_ERROR})
 
 Clock = Callable[[], datetime]
 
@@ -48,7 +63,7 @@ class _UnavailableError(Exception):
 
 
 class ModelInsightProvider:
-    """Gives each analysis one request to the model; the requests are made one after the other."""
+    """Gives each chart of an analysis one request; the requests are made one after the other."""
 
     def __init__(
         self,
@@ -91,9 +106,49 @@ class ModelInsightProvider:
     def _available(self, name: str, analysis: JsonObject) -> JsonObject:
         if analysis.get("status") != "available":
             raise _UnavailableError(ANALYSIS_UNAVAILABLE)
-        charts = chart_series(analysis.get("findings") or {})
-        answer = self._ask(build_user_prompt(name, analysis, charts))
-        return self._checked(answer, charts)
+        charts = _charts_of(analysis)
+        # An analysis without a chart is asked once, about its findings as a whole.
+        texts, reason = self._read_all(name, analysis, charts or [None])
+        if not texts:
+            raise _UnavailableError(reason or MODEL_ERROR)
+        return {
+            "status": "available",
+            "reason": None,
+            "label": AI_LABEL,
+            "provider": self._client.provider,
+            "model": self._client.model,
+            "generated_at": self._clock().isoformat(),
+            "executive_summary": " ".join(t.summary for t in texts),
+            "improvement_suggestions": [s for t in texts for s in t.suggestions],
+            "observations": [t.observation for t in texts if t.series is not None],
+        }
+
+    def _read_all(
+        self, name: str, analysis: JsonObject, charts: Sequence[ChartSeries | None]
+    ) -> tuple[list[_ChartText], str | None]:
+        """The text of each chart that has one, and the reason the first other chart has none."""
+        texts: list[_ChartText] = []
+        reason: str | None = None
+        for chart in charts:
+            try:
+                texts.append(self._read(name, analysis, chart))
+            except _UnavailableError as failure:
+                logger.info("no insight text for a chart of %s: %s", name, failure.reason)
+                reason = reason or failure.reason
+                if failure.reason in _STOPS_THE_ANALYSIS:
+                    break
+        return texts, reason
+
+    def _read(self, name: str, analysis: JsonObject, chart: ChartSeries | None) -> _ChartText:
+        try:
+            answer = self._ask(build_user_prompt(name, analysis, chart))
+            return _checked(answer, chart)
+        except _UnavailableError:
+            raise
+        except Exception:
+            # The rest of the analysis is not asked after a failure nobody expected.
+            logger.exception("insight of a chart of analysis %s failed", name)
+            raise _UnavailableError(MODEL_ERROR) from None
 
     def _ask(self, prompt: str) -> Answer:
         user = prompt
@@ -119,40 +174,66 @@ class ModelInsightProvider:
             logger.warning("the model request failed: %s", failure)
             raise _UnavailableError(MODEL_ERROR) from None
 
-    def _checked(self, answer: Answer, charts: list[ChartSeries]) -> JsonObject:
-        suggestions = [
-            {"suggestion": s.suggestion, "evidence": s.evidence, "sample_size": s.sample_size}
-            for s in answer.suggestions
-            if names_a_number(s.evidence)
-        ]
-        claims = [answer.executive_summary]
-        claims += [f"{s['suggestion']} {s['evidence']}" for s in suggestions]
-        if not answer.executive_summary.strip() or any(makes_forbidden_claim(c) for c in claims):
-            raise _UnavailableError(GUARDRAIL_REJECTED)
-        return {
-            "status": "available",
-            "reason": None,
-            "label": AI_LABEL,
-            "provider": self._client.provider,
-            "model": self._client.model,
-            "generated_at": self._clock().isoformat(),
-            "executive_summary": answer.executive_summary.strip(),
-            "improvement_suggestions": suggestions,
-            "observations": _kept_observations(answer, charts),
+
+@dataclass(frozen=True, slots=True)
+class _ChartText:
+    """What the model wrote about one chart, after the guardrail; ``series`` is None without one."""
+
+    series: str | None
+    summary: str
+    evidence: str
+    suggestions: list[JsonObject]
+
+    @property
+    def observation(self) -> JsonObject:
+        return {"series": self.series, "text": self.summary, "evidence": self.evidence}
+
+
+def _charts_of(analysis: JsonObject) -> list[ChartSeries]:
+    charts = chart_series(analysis.get("findings") or {})
+    forecast = analysis.get(FORECAST_KEY)
+    chart = forecast_chart(forecast) if isinstance(forecast, dict) else None
+    return [*charts, chart] if chart is not None else charts
+
+
+def _evidence_checks_out(evidence: str, chart: ChartSeries | None) -> bool:
+    if chart is None:
+        return names_a_number(evidence)
+    return evidence_is_in_series(evidence, chart)
+
+
+def _writes_only_known_numbers(text: str, chart: ChartSeries | None) -> bool:
+    return chart is None or names_only_numbers_of(text, chart)
+
+
+def _keeps(suggestion: Suggestion, chart: ChartSeries | None) -> bool:
+    return _evidence_checks_out(suggestion.evidence, chart) and _writes_only_known_numbers(
+        suggestion.suggestion, chart
+    )
+
+
+def _checked(answer: Answer, chart: ChartSeries | None) -> _ChartText:
+    """The text of the chart, or ``GUARDRAIL_REJECTED`` for the chart."""
+    series = None if chart is None else chart.id
+    is_forecast = chart is not None and chart.is_forecast
+    summary = answer.summary.strip()
+    recommended = list(answer.suggestions[:MAX_RECOMMENDATIONS])
+    claims = [summary, answer.evidence, *(f"{s.suggestion} {s.evidence}" for s in recommended)]
+    if (
+        not summary
+        or any(makes_forbidden_claim(c, is_forecast) for c in claims)
+        or not _evidence_checks_out(answer.evidence, chart)
+        or not _writes_only_known_numbers(summary, chart)
+    ):
+        raise _UnavailableError(GUARDRAIL_REJECTED)
+    suggestions: list[JsonObject] = [
+        {
+            "suggestion": s.suggestion,
+            "evidence": s.evidence,
+            "sample_size": s.sample_size,
+            **({"series": series} if series is not None else {}),
         }
-
-
-def _kept_observations(answer: Answer, charts: list[ChartSeries]) -> list[JsonObject]:
-    """One observation per chart: the first that names only numbers of its series."""
-    by_id = {c.id: c for c in charts}
-    kept: dict[str, JsonObject] = {}
-    for item in answer.observations:
-        series = by_id.get(item.series)
-        if series is None or item.series in kept:
-            continue
-        if makes_forbidden_claim(f"{item.text} {item.evidence}"):
-            continue
-        if not evidence_is_in_series(item.evidence, series):
-            continue
-        kept[item.series] = {"series": item.series, "text": item.text, "evidence": item.evidence}
-    return list(kept.values())
+        for s in recommended
+        if _keeps(s, chart)
+    ]
+    return _ChartText(series, summary, answer.evidence, suggestions)

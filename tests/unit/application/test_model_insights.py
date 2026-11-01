@@ -9,7 +9,9 @@ import pytest
 from app.application.analyse_market import analyse_market
 from app.application.chart_series import MAX_SERIES, chart_series
 from app.application.documents import JsonObject
+from app.application.forecast_charts import MEASURE_OF_ANALYSIS
 from app.application.insight_guardrail import evidence_is_in_series
+from app.application.insight_prompt import PROMPT_VERSION
 from app.application.market_result import build_market_result
 from app.application.model_insights import ModelInsightProvider
 from app.application.ports.model_client import (
@@ -47,7 +49,8 @@ GROUPS = {
     }
 }
 SERIES_ID = "splits.by_deposit_type.groups"
-NO_CHARTS_REQUEST = ModelRequest("", "Analysis: x", {}, 1, LIMITS)
+SEGMENT_ID = "splits.by_market_segment.groups"
+FORECAST_ID = "forecast.arrivals"
 
 
 def _analysis(findings: JsonObject | None = None, status: str = "available") -> JsonObject:
@@ -64,28 +67,58 @@ def _provider(client: FakeModelClient) -> ModelInsightProvider:
     return ModelInsightProvider(client, LIMITS, MAX_TOKENS, lambda: NOW)
 
 
-def _observation(**changes: str) -> dict[str, str]:
-    observation = {
-        "series": SERIES_ID,
-        "text": "No Deposit is higher.",
-        "evidence": "24.7 and 15.5",
-    }
-    observation.update(changes)
-    return observation
-
-
 def _ask(answer: str, analysis: JsonObject | None = None) -> JsonObject:
     provider = _provider(FakeModelClient(scripted(answer)))
     return provider.insight_for("cancellations", analysis or _analysis())
 
 
+def _chart_id(request: ModelRequest) -> str:
+    (chart,) = charts_of(request)
+    return str(chart["id"])
+
+
+def _two_charts() -> JsonObject:
+    segments = {
+        "groups": [
+            {"figure": {"group": "Online", "numerator": 30, "denominator": 40}},
+            {"figure": {"group": "Direct", "numerator": 5, "denominator": 20}},
+        ]
+    }
+    return _analysis({"splits": {**GROUPS["splits"], "by_market_segment": segments}})
+
+
+def _forecast_part() -> JsonObject:
+    months = [
+        {"group": "2025-01", "value": "150.00", "low": "79.29", "high": "220.71"},
+        {"group": "2025-02", "value": "300.00", "low": "158.58", "high": "441.42"},
+    ]
+    return {
+        "measure": "arrivals",
+        "unit": "bookings",
+        "history_months": 30,
+        "minimum_history_months": 24,
+        "history_too_short": False,
+        "months": months,
+    }
+
+
+def _forecast_analysis() -> JsonObject:
+    """An analysis with no chart of its own and the forecast of the service."""
+    return {**_analysis({"fields": ["a"]}), "forecast": _forecast_part()}
+
+
+def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, object]:
+    return {"suggestion": suggestion, "evidence": evidence, "sample_size": 3}
+
+
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "1"}
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "2"}
+    assert PROMPT_VERSION == "2"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
-    insight = _ask(answer_json(observations=[_observation()]))
+    insight = _ask(answer_json())
     assert insight["status"] == "available"
     assert insight["reason"] is None
     assert insight["label"] == "AI-generated"
@@ -95,11 +128,14 @@ def test_an_available_insight_carries_the_label_provider_model_and_time() -> Non
     assert insight["improvement_suggestions"] == [
         {
             "suggestion": "Look at the weakest group.",
-            "evidence": "It is 12.5 here.",
+            "evidence": "It is 15.5 here.",
             "sample_size": 80,
+            "series": SERIES_ID,
         }
     ]
-    assert insight["observations"] == [_observation()]
+    assert insight["observations"] == [
+        {"series": SERIES_ID, "text": "Shares differ between the groups.", "evidence": "24.7"}
+    ]
 
 
 def test_the_request_carries_the_maximum_output_tokens_the_schema_and_the_limits() -> None:
@@ -108,76 +144,172 @@ def test_the_request_carries_the_maximum_output_tokens_the_schema_and_the_limits
     (request,) = client.requests
     assert request.max_output_tokens == 32768
     assert request.limits == LIMITS
-    assert set(request.schema["required"]) == {
-        "executive_summary",
-        "improvement_suggestions",
-        "observations",
-    }
+    assert set(request.schema["required"]) == {"summary", "evidence", "recommendations"}
 
 
-def test_the_prompt_holds_the_figures_the_charts_and_the_rules() -> None:
+def test_the_prompt_holds_the_chart_its_counts_and_the_rules() -> None:
     client = FakeModelClient(well_formed_answer)
     _provider(client).insight_for("cancellations", _analysis())
     (request,) = client.requests
     assert "Analysis: cancellations" in request.user
     assert "share = numerator / denominator" in request.user
     assert "Associations only." in request.user
-    assert '"numerator":9450' in request.user
+    assert "9450" in request.user  # the counts behind a share are in the chart
     assert [c["id"] for c in charts_of(request)] == [SERIES_ID]
     assert "associations only" in request.system
-    assert "forecast" in request.system
+    assert "two to three sentences" in request.system
+    assert "recommendations" in request.system
 
 
-def test_a_causal_summary_is_rejected_by_the_guardrail() -> None:
-    insight = _ask(answer_json(executive_summary="Cancellations rise because of the price."))
-    assert insight["status"] == "unavailable"
-    assert insight["reason"] == "GUARDRAIL_REJECTED"
+def test_the_service_makes_one_request_for_each_chart() -> None:
+    client = FakeModelClient(well_formed_answer)
+    insight = _provider(client).insight_for("cancellations", _two_charts())
+    assert [_chart_id(r) for r in client.requests] == [SERIES_ID, SEGMENT_ID]
+    assert [o["series"] for o in insight["observations"]] == [SERIES_ID, SEGMENT_ID]
+    # The summaries of the charts are joined and each recommendation names its chart.
+    assert insight["executive_summary"].count("is the first group of the chart") == 2
+    assert [s["series"] for s in insight["improvement_suggestions"]] == [SERIES_ID, SEGMENT_ID]
+
+
+def test_a_chart_the_guardrail_rejects_loses_only_its_own_text() -> None:
+    def respond(request: ModelRequest) -> str:
+        if _chart_id(request) == SERIES_ID:
+            return answer_json(summary="Cancellations rise because of the price.")
+        return well_formed_answer(request)
+
+    client = FakeModelClient(respond)
+    insight = _provider(client).insight_for("cancellations", _two_charts())
+    assert len(client.requests) == 2
+    assert insight["status"] == "available"
+    assert [o["series"] for o in insight["observations"]] == [SEGMENT_ID]
+    assert "because" not in insight["executive_summary"]
+    assert {s["series"] for s in insight["improvement_suggestions"]} == {SEGMENT_ID}
+
+
+def test_an_analysis_whose_charts_are_all_rejected_is_rejected() -> None:
+    insight = _ask(answer_json(summary="Sales will increase."))
+    assert (insight["status"], insight["reason"]) == ("unavailable", "GUARDRAIL_REJECTED")
     assert "executive_summary" not in insight
 
 
-def test_a_forecast_in_a_suggestion_is_rejected_by_the_guardrail() -> None:
-    suggestion = {"suggestion": "Sales will increase.", "evidence": "It is 3.", "sample_size": 3}
-    insight = _ask(answer_json(improvement_suggestions=[suggestion]))
-    assert insight["reason"] == "GUARDRAIL_REJECTED"
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"summary": "Cancellations rise due to the price."},
+        {"summary": "This guarantees growth."},
+        {"evidence": "24.7 and 99.9"},
+        {"evidence": "No numbers."},
+        {"summary": "No Deposit is 99.9 here."},
+        {"recommendations": [_rec("It leads to 15.5.")]},
+        {"recommendations": [_rec("Sales will rise.")]},
+    ],
+    ids=[
+        "cause",
+        "promise",
+        "unknown-figure",
+        "no-number",
+        "unknown-figure-in-text",
+        "recommendation-cause",
+        "recommendation-promise",
+    ],
+)
+def test_a_chart_text_with_a_cause_a_promise_or_a_figure_not_in_the_series_is_rejected(
+    changes: dict[str, object],
+) -> None:
+    insight = _ask(answer_json(**changes))
+    assert (insight["status"], insight["reason"]) == ("unavailable", "GUARDRAIL_REJECTED")
 
 
 def test_a_blank_summary_is_rejected() -> None:
-    assert _ask(answer_json(executive_summary="  "))["reason"] == "GUARDRAIL_REJECTED"
+    assert _ask(answer_json(summary="  "))["reason"] == "GUARDRAIL_REJECTED"
 
 
-def test_a_suggestion_whose_evidence_names_no_number_is_dropped() -> None:
-    suggestion = {"suggestion": "Do more.", "evidence": "Looks good.", "sample_size": 3}
-    insight = _ask(answer_json(improvement_suggestions=[suggestion]))
+def test_a_recommendation_whose_evidence_does_not_check_out_is_dropped_and_the_summary_stays() -> (
+    None
+):
+    no_number = _rec("Do more.", "Looks good.")
+    wrong_number = _rec("Do less.", "It is 77.7.")
+    insight = _ask(answer_json(recommendations=[no_number, wrong_number, _rec()]))
     assert insight["status"] == "available"
-    assert insight["improvement_suggestions"] == []
+    assert [s["suggestion"] for s in insight["improvement_suggestions"]] == ["Check it."]
+
+
+def test_at_most_three_recommendations_are_kept_for_a_chart() -> None:
+    insight = _ask(answer_json(recommendations=[_rec()] * 5))
+    assert len(insight["improvement_suggestions"]) == 3
+
+
+def test_the_counts_and_the_labels_of_a_chart_may_be_cited() -> None:
+    summary = "No Deposit has 9450 of 38199 bookings, 24.7 percent."
+    insight = _ask(answer_json(summary=summary, evidence="9450 and 38199"))
+    assert insight["status"] == "available"
+
+
+def test_the_forecast_of_the_service_may_be_described_with_its_figures() -> None:
+    answer = answer_json(
+        summary="The forecast for 2025-01 is 150.00 arrivals, between 79.29 and 220.71, "
+        "from 30 months of history.",
+        evidence="150.00, 79.29, 220.71, 30",
+        recommendations=[_rec("Plan staff for the projected 300.00 of 2025-02.", "300.00")],
+    )
+    client = FakeModelClient(scripted(answer))
+    insight = _provider(client).insight_for("seasonality", _forecast_analysis())
+    assert insight["status"] == "available"
+    assert [_chart_id(r) for r in client.requests] == [FORECAST_ID]
+    assert insight["observations"][0]["series"] == FORECAST_ID
+    assert len(insight["improvement_suggestions"]) == 1
 
 
 @pytest.mark.parametrize(
-    "dropped",
+    "summary",
     [
-        _observation(evidence="24.7 and 99.9"),
-        _observation(evidence="No numbers."),
-        _observation(series="splits.other.groups"),
-        _observation(text="This will increase."),
+        "The forecast says 150.00 and the arrivals will increase.",  # a promise
+        "The forecast of 150.00 arrivals is due to the season.",  # a cause
+        "The forecast is 999.00 arrivals.",  # a figure that is not in the input
+        "We predict 150.00 arrivals.",  # a forecast of the model itself
     ],
+    ids=["promise", "cause", "unknown-figure", "own-prediction"],
 )
-def test_an_observation_that_does_not_check_out_is_dropped_and_the_rest_stays(
-    dropped: dict[str, str],
+def test_the_forecast_chart_still_rejects_a_promise_a_cause_and_an_unknown_figure(
+    summary: str,
 ) -> None:
-    insight = _ask(answer_json(observations=[dropped, _observation(evidence="15.5")]))
-    assert insight["status"] == "available"
-    assert insight["observations"] == [_observation(evidence="15.5")]
+    client = FakeModelClient(scripted(answer_json(summary=summary, evidence="150.00")))
+    insight = _provider(client).insight_for("seasonality", _forecast_analysis())
+    assert (insight["status"], insight["reason"]) == ("unavailable", "GUARDRAIL_REJECTED")
 
 
-def test_only_one_observation_is_kept_for_a_chart() -> None:
-    insight = _ask(answer_json(observations=[_observation(), _observation(evidence="15.5")]))
-    assert insight["observations"] == [_observation()]
+def test_the_word_forecast_is_rejected_on_a_chart_that_is_not_the_forecast_of_the_service() -> None:
+    insight = _ask(answer_json(summary="The forecast of 24.7 is high."))
+    assert insight["reason"] == "GUARDRAIL_REJECTED"
 
 
-def test_an_analysis_without_charts_has_no_observations() -> None:
-    insight = _ask(well_formed_answer(NO_CHARTS_REQUEST), _analysis({"fields": ["a"]}))
+def test_the_forecast_is_a_chart_beside_the_charts_of_the_findings() -> None:
+    analysis = {**_analysis(), "forecast": _forecast_part()}
+    client = FakeModelClient(well_formed_answer)
+    insight = _provider(client).insight_for("seasonality", analysis)
+    assert [_chart_id(r) for r in client.requests] == [SERIES_ID, FORECAST_ID]
+    assert [o["series"] for o in insight["observations"]] == [SERIES_ID, FORECAST_ID]
+
+
+def test_the_prompt_of_the_forecast_chart_says_how_long_the_history_is() -> None:
+    client = FakeModelClient(well_formed_answer)
+    _provider(client).insight_for("seasonality", _forecast_analysis())
+    (request,) = client.requests
+    (chart,) = charts_of(request)
+    assert chart["columns"] == ["label", "expected", "low", "high"]
+    assert (chart["history_months"], chart["history_too_short"]) == (30, False)
+    assert 'starts with "forecast."' in request.system
+
+
+def test_an_analysis_without_charts_is_asked_once_about_its_findings() -> None:
+    client = FakeModelClient(well_formed_answer)
+    insight = _provider(client).insight_for("correlations", _analysis({"fields": ["a"]}))
+    (request,) = client.requests
+    assert charts_of(request) == []
+    assert '"fields":["a"]' in request.user
     assert insight["status"] == "available"
     assert insight["observations"] == []
+    assert insight["executive_summary"]
 
 
 def test_a_bad_structure_is_asked_once_more_with_a_reminder() -> None:
@@ -191,10 +323,19 @@ def test_a_bad_structure_is_asked_once_more_with_a_reminder() -> None:
 
 
 def test_a_second_bad_structure_gives_bad_structure_after_two_requests() -> None:
-    client = FakeModelClient(scripted("not json", '{"executive_summary": 3}'))
+    client = FakeModelClient(scripted("not json", '{"summary": 3}'))
     insight = _provider(client).insight_for("cancellations", _analysis())
     assert (insight["status"], insight["reason"]) == ("unavailable", "BAD_STRUCTURE")
     assert len(client.requests) == 2
+
+
+def test_a_chart_with_a_bad_structure_does_not_remove_the_others() -> None:
+    second = answer_json(evidence="75.0", recommendations=[_rec(evidence="25.0")])
+    client = FakeModelClient(scripted("a", "b", second))
+    insight = _provider(client).insight_for("cancellations", _two_charts())
+    assert len(client.requests) == 3
+    assert insight["status"] == "available"
+    assert [o["series"] for o in insight["observations"]] == [SEGMENT_ID]
 
 
 @pytest.mark.parametrize(
@@ -206,16 +347,23 @@ def test_a_model_failure_or_an_empty_answer_gives_model_error_without_retry(
     outcome: str | Exception,
 ) -> None:
     client = FakeModelClient(scripted(outcome))
-    insight = _provider(client).insight_for("cancellations", _analysis())
+    insight = _provider(client).insight_for("cancellations", _two_charts())
     assert (insight["status"], insight["reason"]) == ("unavailable", "MODEL_ERROR")
-    assert len(client.requests) == 1
+    assert len(client.requests) == 1  # the other chart is not asked after a failure
 
 
-def test_a_timeout_gives_timeout_without_retry() -> None:
+def test_a_timeout_gives_timeout_without_retry_and_stops_the_analysis() -> None:
     client = FakeModelClient(scripted(ModelTimeoutError("slow")))
-    insight = _provider(client).insight_for("cancellations", _analysis())
+    insight = _provider(client).insight_for("cancellations", _two_charts())
     assert (insight["status"], insight["reason"]) == ("unavailable", "TIMEOUT")
     assert len(client.requests) == 1
+
+
+def test_a_timeout_after_some_charts_keeps_the_text_of_those_charts() -> None:
+    client = FakeModelClient(scripted(answer_json(), ModelTimeoutError("slow")))
+    insight = _provider(client).insight_for("cancellations", _two_charts())
+    assert insight["status"] == "available"
+    assert len(insight["observations"]) == 1
 
 
 def test_an_analysis_without_data_is_not_asked() -> None:
@@ -258,16 +406,19 @@ def test_a_model_that_keeps_sending_tokens_is_stopped_at_the_total_limit() -> No
     assert (insight["status"], insight["reason"]) == ("unavailable", "TIMEOUT")
 
 
-def test_the_sample_result_gets_an_insight_for_every_analysis_with_observations_per_chart() -> None:
+def test_the_sample_result_gets_a_summary_and_recommendations_for_every_chart() -> None:
     analyses = json.loads(SAMPLE.read_text(encoding="utf-8"))["analyses"]
-    provider = _provider(FakeModelClient(well_formed_answer))
+    client = FakeModelClient(well_formed_answer)
+    provider = _provider(client)
     for name, analysis in analyses.items():
+        before = len(client.requests)
         insight = provider.insight_for(name, analysis)
         charts = {c.id: c for c in chart_series(analysis["findings"])}
         assert insight["status"] == "available", name
         assert insight["executive_summary"]
         assert insight["improvement_suggestions"]
         assert [o["series"] for o in insight["observations"]] == list(charts)
+        assert len(client.requests) - before == max(1, len(charts))
         assert len(charts) <= MAX_SERIES
         for observation in insight["observations"]:
             assert evidence_is_in_series(observation["evidence"], charts[observation["series"]])
@@ -304,29 +455,34 @@ def _build(provider: ModelInsightProvider | None) -> JsonObject:
     return build_market_result(analysis, bookings, calendar, "id", NOW, provider)
 
 
-def test_every_one_of_the_nine_analyses_of_a_run_gets_its_insight() -> None:
+def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> None:
     client = FakeModelClient(well_formed_answer)
     result = _build(_provider(client))
     analyses = result["analyses"]
     assert len(analyses) == 9
-    assert len(client.requests) == 9
     assert result["insights"] == {
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "1",
+        "prompt_version": "2",
     }
-    for analysis in analyses.values():
+    requests = 0
+    for name, analysis in analyses.items():
         insight = analysis["insight"]
-        assert insight["status"] == "available"
-        charts = chart_series(analysis["findings"])
-        assert len(insight["observations"]) == len(charts) <= MAX_SERIES
+        assert insight["status"] == "available", name
+        expected = [c.id for c in chart_series(analysis["findings"])]
+        if name in MEASURE_OF_ANALYSIS:
+            expected.append(f"forecast.{MEASURE_OF_ANALYSIS[name]}")
+        assert [o["series"] for o in insight["observations"]] == expected
+        assert "forecast" not in analysis  # the part of the forecast is not stored in the analysis
+        requests += len(expected) or 1
+    assert len(client.requests) == requests
 
 
 def test_a_rejected_analysis_does_not_touch_the_others_or_the_numbers() -> None:
     def respond(request: ModelRequest) -> str:
         if "Analysis: seasonality" in request.user:
-            return answer_json(executive_summary="This guarantees growth.")
+            return answer_json(summary="This guarantees growth.")
         return well_formed_answer(request)
 
     with_ai = _build(_provider(FakeModelClient(respond)))
@@ -337,6 +493,27 @@ def test_a_rejected_analysis_does_not_touch_the_others_or_the_numbers() -> None:
     assert with_ai["notices"][-1]["code"] == "INSIGHTS_UNAVAILABLE"
     for name, analysis in with_ai["analyses"].items():
         assert analysis["findings"] == without_ai["analyses"][name]["findings"]
+    assert with_ai["forecast"] == without_ai["forecast"]
+
+
+def test_a_rejected_chart_of_a_run_leaves_the_other_charts_of_its_analysis() -> None:
+    rejected = "splits.by_deposit_type.groups"
+
+    def respond(request: ModelRequest) -> str:
+        if _chart_id_or_none(request) == rejected:
+            return answer_json(summary="Because of the deposit.")
+        return well_formed_answer(request)
+
+    insight = _build(_provider(FakeModelClient(respond)))["analyses"]["cancellations"]["insight"]
+    assert insight["status"] == "available"
+    series = [o["series"] for o in insight["observations"]]
+    assert rejected not in series
+    assert len(series) >= 1
+
+
+def _chart_id_or_none(request: ModelRequest) -> str | None:
+    charts = charts_of(request)
+    return str(charts[0]["id"]) if charts else None
 
 
 def test_with_insights_off_there_is_no_insight_and_no_call() -> None:

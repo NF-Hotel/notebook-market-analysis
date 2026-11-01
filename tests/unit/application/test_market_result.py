@@ -99,7 +99,7 @@ def test_the_result_validates_with_missing_optional_values() -> None:
 def test_the_envelope_holds_the_nine_analyses_and_the_input() -> None:
     bookings = _bookings()
     result = _build(bookings)
-    assert result["schema_version"] == "1.1"
+    assert result["schema_version"] == "1.2"
     assert result["result_id"] == RESULT_ID
     assert result["generated_at"] == "2026-05-01T08:00:00+00:00"
     assert set(result["analyses"]) == NINE
@@ -186,3 +186,44 @@ def test_correlations_are_inside_minus_one_and_one() -> None:
 def test_the_insight_key_follows_the_request(insights: bool) -> None:
     result = _build(_bookings(5), insights=insights if insights else None)
     assert all(("insight" in a) is insights for a in result["analyses"].values())
+
+
+def test_room_revenue_is_in_the_findings_of_room_value_as_decimal_text() -> None:
+    bookings = [
+        make_booking(booking_id=1, stays_in_week_nights=2, price_per_night=Decimal("50.50")),
+        make_booking(booking_id=2, arrival_date=date(2024, 2, 1), price_per_night=Decimal("80")),
+        make_booking(booking_id=3, is_canceled=True, price_per_night=Decimal("999")),
+        make_booking(booking_id=4),
+    ]
+    revenue = _build(bookings, insights=None)["analyses"]["room_value"]["findings"]["room_revenue"]
+    assert (revenue["total"], revenue["mean"]) == ("181.00", "90.5000")
+    assert (revenue["records_with_price"], revenue["records_without_price"]) == (2, 1)
+    assert revenue["monthly"] == [
+        {"group": "2024-01", "value": "101.00", "bookings": 1},
+        {"group": "2024-02", "value": "80", "bookings": 1},
+    ]
+    assert "before taxes, fees, discounts and extras" in revenue["limitation"]
+
+
+def test_the_forecast_is_in_the_result_and_marks_a_short_history() -> None:
+    forecast = _build(_bookings(), insights=None)["forecast"]
+    assert forecast["history_too_short"] is True
+    assert forecast["history_months"] == 22
+    assert forecast["horizon_months"] == 6
+    assert set(forecast["measures"]) == {"arrivals", "occupancy", "room_revenue"}
+    for measure in forecast["measures"].values():
+        assert len(measure["months"]) == 6
+        assert set(measure["months"][0]) == {"group", "value", "low", "high"}
+
+
+def test_a_provider_is_given_the_forecast_only_with_the_analyses_it_belongs_to() -> None:
+    provider = RecordingInsightProvider()
+    bookings = _bookings()
+    calendar = build_calendar(2022, 2026)
+    analysis = analyse_market(bookings, 20, calendar)
+    build_market_result(analysis, bookings, calendar, RESULT_ID, GENERATED_AT, provider)
+    assert provider.forecast_of == {
+        "seasonality": "arrivals",
+        "occupancy": "occupancy",
+        "room_value": "room_revenue",
+    }
