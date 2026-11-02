@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 
 from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
 from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "5"
+PROMPT_VERSION = "7"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
@@ -21,7 +22,8 @@ Markdown and one to {MAX_RECOMMENDATIONS} recommendations.
 Rules:
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
-"guarantee", "expected to").
+"guarantee", "expected to"). Write the findings of the data in the present or past tense \
+("is", "was", "rose"), never with "predict", "predicted" or "projected".
 - "summary": two or three plain sentences that say what the chart shows. Use bold only for key \
 figures (for example "**24.7%**"). Write no list, no heading, no table and no HTML. Name the \
 numbers the text rests on, copied from the chart.
@@ -51,6 +53,30 @@ RULES_REMINDER = (
 )
 
 
+def note_for_phrase(found: str) -> str:
+    """The line that names the forbidden word of a rejected text; ``found`` is word and context."""
+    return (
+        f"Your previous text was rejected because it contained {found}. Describe findings of the "
+        'data with "is" or "was" and rewrite it without that word.'
+    )
+
+
+def note_for_figures(figures: Sequence[str]) -> str:
+    """The line that names the figures of a rejected text that are not in the input."""
+    return (
+        "Your previous text was rejected because these figures are not in the input: "
+        f"{', '.join(figures)}. Copy figures exactly as written in the input."
+    )
+
+
+def note_for_missing(what: str) -> str:
+    """The line for a rejected text that lacks something; ``what`` says what, as a clause."""
+    return (
+        f"Your previous text was rejected because {what}. "
+        "Write it and copy the figures from the input."
+    )
+
+
 OVERALL_SYSTEM_PROMPT = f"""\
 You are a careful data analyst for a hotel. You are given a short input: for each \
 analysis of the bookings the first sentence of its summary and its largest finding, and the \
@@ -66,7 +92,11 @@ figures cannot say.
 input, each with "suggestion", "evidence" and "sample_size" (0 if unknown).
 - Describe observed associations only. Do not claim a cause (no "because", "due to", \
 "caused by", "leads to") and do not promise or predict anything yourself (no "will increase", \
-"guarantee", "expected to"). You may describe the forecast of the service and cite its figures.
+"guarantee", "expected to"). Write the findings of the data in the present or past tense \
+("is", "was", "rose"), never with "predict", "predicted" or "projected". For the forecast say \
+"the forecast of the service shows" and cite its figures.
+- Copy the figures of the forecast exactly as written in the input: no rounding and no \
+calculation of your own.
 - Use only numbers that are in the input. Do not invent any and do not calculate new ones.
 - "evidence": the numbers of the summary, copied from the input.
 - Answer with one JSON object of the given schema and nothing else.

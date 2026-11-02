@@ -90,12 +90,34 @@ _SHORTENED_TITLE = re.compile(r"latest (\d+) of (\d+) months")
 # that a stray 0 or 1 does not match every share.
 _FRACTION_DECIMALS = 2
 _PERCENT = Decimal(100)
+_WORD_REST = re.compile(r"\w*")
+# Up to three words before and after a forbidden word, to find it in the text.
+_BEFORE = re.compile(r"(?:\S+\s+){0,3}$")
+_AFTER = re.compile(r"(?:\s*\S+){0,3}")
+
+
+def forbidden_phrase_in(text: str, is_forecast_chart: bool = False) -> str | None:
+    """The first forbidden word with a little context, or None.
+
+    The word is the whole word the phrase starts, for example ``"predicted" in "rate is predicted
+    for March"``; the forecast of the service may be described on its own chart.
+    """
+    pattern = _FORBIDDEN_ON_FORECAST if is_forecast_chart else _FORBIDDEN
+    match = pattern.search(text)
+    if match is None:
+        return None
+    rest = _WORD_REST.match(text, match.end())
+    end = rest.end() if rest else match.end()
+    word = text[match.start() : end]
+    before = _BEFORE.search(text, 0, match.start())
+    after = _AFTER.match(text, end)
+    context = f"{before.group() if before else ''}{word}{after.group() if after else ''}"
+    return f'"{word}" in "{" ".join(context.split())}"'
 
 
 def makes_forbidden_claim(text: str, is_forecast_chart: bool = False) -> bool:
     """True for a cause, a promise or a prediction; the forecast of the service may be described."""
-    pattern = _FORBIDDEN_ON_FORECAST if is_forecast_chart else _FORBIDDEN
-    return pattern.search(text) is not None
+    return forbidden_phrase_in(text, is_forecast_chart) is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +125,7 @@ class _Mention:
     value: Decimal
     decimals: int
     is_percent: bool
+    written: str
 
 
 def _label_pattern(label: str) -> re.Pattern[str]:
@@ -119,7 +142,7 @@ def _mentions(text: str, labels: Iterable[str]) -> list[_Mention]:
     found: list[_Mention] = []
     for match in _NUMBER.finditer(text):
         value = Decimal(match.group(1).replace(",", ""))
-        found.append(_Mention(value, _decimals(value), bool(match.group(2))))
+        found.append(_Mention(value, _decimals(value), bool(match.group(2)), match.group(1)))
     return found
 
 
@@ -177,16 +200,25 @@ def _matches(mention: _Mention, series: ChartSeries, allowed: list[Decimal]) -> 
     return any(_round(v / _PERCENT, mention.decimals) == mention.value for v in allowed)
 
 
+def _labels_of(series: ChartSeries) -> list[str]:
+    return [p.label for p in series.points] + [series.id, series.title]
+
+
+def figures_not_in_series(text: str, series: ChartSeries) -> list[str]:
+    """The numbers the text writes that are not found in the series, as written, once each."""
+    allowed = _allowed_values(series)
+    missing = [
+        m.written for m in _mentions(text, _labels_of(series)) if not _matches(m, series, allowed)
+    ]
+    return list(dict.fromkeys(missing))
+
+
 def evidence_is_in_series(evidence: str, series: ChartSeries) -> bool:
     """True when the evidence names numbers and every one of them is found in the series."""
-    labels = [p.label for p in series.points] + [series.id, series.title]
-    mentions = _mentions(evidence, labels)
-    allowed = _allowed_values(series)
-    return bool(mentions) and all(_matches(m, series, allowed) for m in mentions)
+    named = bool(_mentions(evidence, _labels_of(series)))
+    return named and not figures_not_in_series(evidence, series)
 
 
 def names_only_numbers_of(text: str, series: ChartSeries) -> bool:
     """True when every number the text writes is found in the series (no number is fine)."""
-    labels = [p.label for p in series.points] + [series.id, series.title]
-    allowed = _allowed_values(series)
-    return all(_matches(m, series, allowed) for m in _mentions(text, labels))
+    return not figures_not_in_series(text, series)
