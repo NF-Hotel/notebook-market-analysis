@@ -114,8 +114,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "6"}
-    assert PROMPT_VERSION == "6"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "7"}
+    assert PROMPT_VERSION == "7"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -469,7 +469,7 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "6",
+        "prompt_version": "7",
         "overall": result["insights"]["overall"],
     }
     assert result["insights"]["overall"]["source"] == "ai"
@@ -650,7 +650,7 @@ def test_a_rejected_overall_text_gives_none_and_leaves_the_analyses_alone(
     texts = _run_texts()
     before = json.dumps(texts, sort_keys=True)
     bad = json.dumps({**json.loads(_overall_answer()), **changes})
-    client = FakeModelClient(scripted(bad, bad))
+    client = FakeModelClient(scripted(bad, bad, bad))
     assert _provider(client).overall_for(texts, _forecast_input()) is None
     assert json.dumps(texts, sort_keys=True) == before
 
@@ -672,7 +672,7 @@ def test_a_forecast_figure_written_wrongly_in_the_overall_text_is_rejected() -> 
         evidence="150.00",
         recommendations=[_rec("Look at 24.7.", "24.7")],
     )
-    client = FakeModelClient(scripted(answer, answer))
+    client = FakeModelClient(scripted(answer, answer, answer))
     assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
 
 
@@ -688,11 +688,59 @@ def test_a_first_overall_rejection_is_asked_once_more_and_a_good_answer_is_kept(
     assert "rejected by the checks" not in first.user
 
 
-def test_two_overall_rejections_give_none_after_exactly_two_requests() -> None:
+def test_three_overall_rejections_give_none_after_exactly_three_requests() -> None:
     bad = answer_json(summary="Sales will increase.")
-    client = FakeModelClient(scripted(bad, bad))
+    client = FakeModelClient(scripted(bad, bad, bad, bad))
     assert _provider(client).overall_for(_run_texts(), _forecast_input()) is None
+    assert len(client.requests) == 3
+
+
+def test_the_second_request_names_the_forbidden_word_of_the_first_rejection() -> None:
+    bad = answer_json(summary="The highest rate is predicted for March 2026.", evidence="24.7")
+    client = FakeModelClient(scripted(bad, _overall_answer()))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is not None
+    first, second = client.requests
+    assert "rejected because" not in first.user
+    assert 'it contained "predicted" in "highest rate is predicted for March 2026."' in second.user
+    assert "rewrite it without that word" in second.user
+
+
+def test_the_second_request_names_the_figures_that_are_not_in_the_input() -> None:
+    bad = answer_json(summary="The forecast shows 1,278 and 45.1.", evidence="150.00")
+    client = FakeModelClient(scripted(bad, _overall_answer()))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is not None
+    second = client.requests[1]
+    assert "these figures are not in the input: 1,278, 45.1." in second.user
+    assert "Copy figures exactly as written in the input." in second.user
+
+
+def test_the_overall_text_is_kept_on_the_third_request_and_each_names_the_last_reason() -> None:
+    first_bad = answer_json(summary="Sales will increase.")
+    second_bad = answer_json(summary="The forecast shows 999.00.", evidence="150.00")
+    client = FakeModelClient(scripted(first_bad, second_bad, _overall_answer()))
+    assert _provider(client).overall_for(_run_texts(), _forecast_input()) is not None
+    _first, second, third = client.requests
+    assert "will increase" in second.user
+    assert "999.00" not in second.user
+    assert "999.00" in third.user
+    assert "will increase" not in third.user
+    assert third.user.count("rejected by the checks") == 1
+
+
+def test_a_chart_is_still_asked_at_most_twice_and_names_the_reason() -> None:
+    bad = answer_json(summary="Cancellations rise because of it.")
+    client = FakeModelClient(scripted(bad, bad, answer_json()))
+    insight = _provider(client).insight_for("cancellations", _analysis())
+    assert insight["reason"] == "GUARDRAIL_REJECTED"
     assert len(client.requests) == 2
+    assert 'contained "because" in' in client.requests[1].user
+
+
+def test_a_chart_second_request_names_the_figures_not_in_the_series() -> None:
+    bad = answer_json(summary="No Deposit is 99.9 here.")
+    client = FakeModelClient(scripted(bad, answer_json()))
+    assert _provider(client).insight_for("cancellations", _analysis())["status"] == "available"
+    assert "these figures are not in the input: 99.9." in client.requests[1].user
 
 
 @pytest.mark.parametrize("outcome", [ModelFailedError("x"), ModelTimeoutError("x")])

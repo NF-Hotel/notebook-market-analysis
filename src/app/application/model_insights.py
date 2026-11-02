@@ -24,9 +24,9 @@ from app.application.insight_answer import (
 )
 from app.application.insight_guardrail import (
     evidence_is_in_series,
-    makes_forbidden_claim,
+    figures_not_in_series,
+    forbidden_phrase_in,
     names_a_number,
-    names_only_numbers_of,
 )
 from app.application.insight_prompt import (
     OVERALL_SYSTEM_PROMPT,
@@ -36,6 +36,9 @@ from app.application.insight_prompt import (
     SYSTEM_PROMPT,
     build_overall_prompt,
     build_user_prompt,
+    note_for_figures,
+    note_for_missing,
+    note_for_phrase,
 )
 from app.application.overall_insight import (
     AVAILABLE,
@@ -61,6 +64,9 @@ GUARDRAIL_REJECTED = "GUARDRAIL_REJECTED"
 MODEL_ERROR = "MODEL_ERROR"
 ANALYSIS_UNAVAILABLE = "ANALYSIS_UNAVAILABLE"
 _ATTEMPTS = 2  # the request and one retry on a bad structure
+# The requests for one text when the guardrail rejects it: each next one names the last reason.
+_CHART_REQUESTS = 2
+_OVERALL_REQUESTS = 3
 # A model that timed out or failed is not asked again for the rest of the analysis.
 _STOPS_THE_ANALYSIS = frozenset({TIMEOUT, MODEL_ERROR})
 
@@ -68,9 +74,11 @@ Clock = Callable[[], datetime]
 
 
 class _UnavailableError(Exception):
-    def __init__(self, reason: str) -> None:
+    def __init__(self, reason: str, detail: str | None = None) -> None:
         super().__init__(reason)
         self.reason = reason
+        # The line for the next request: what exactly the guardrail rejected.
+        self.detail = detail
 
 
 class ModelInsightProvider:
@@ -153,7 +161,9 @@ class ModelInsightProvider:
     def _read(self, name: str, analysis: JsonObject, chart: ChartSeries | None) -> _ChartText:
         prompt = build_user_prompt(name, analysis, chart)
         try:
-            return self._asked_twice(prompt, SYSTEM_PROMPT, True, lambda a: _checked(a, chart))
+            return self._asked(
+                prompt, SYSTEM_PROMPT, True, _CHART_REQUESTS, lambda a: _checked(a, chart)
+            )
         except _UnavailableError:
             raise
         except Exception:
@@ -178,10 +188,11 @@ class ModelInsightProvider:
             # describe the forecast of the service, and nothing else is let through.
             figures = figures_of_input(text)
             return self._overall(
-                self._asked_twice(
+                self._asked(
                     build_overall_prompt(text),
                     OVERALL_SYSTEM_PROMPT,
                     False,
+                    _OVERALL_REQUESTS,
                     lambda a: _checked(a, figures, MAX_OVERALL_RECOMMENDATIONS),
                 )
             )
@@ -191,17 +202,25 @@ class ModelInsightProvider:
             logger.exception("the overall interpretation failed")
         return None
 
-    def _asked_twice(
-        self, prompt: str, system: str, plain: bool, check: Callable[[Answer], _ChartText]
+    def _asked(
+        self,
+        prompt: str,
+        system: str,
+        plain: bool,
+        requests: int,
+        check: Callable[[Answer], _ChartText],
     ) -> _ChartText:
-        """The checked text; a rejected answer is asked once more with the rules, then it stands."""
-        try:
-            return check(self._ask(prompt, system, plain=plain))
-        except _UnavailableError as rejected:
-            if rejected.reason != GUARDRAIL_REJECTED:
-                raise
-        logger.info("an answer was rejected by the guardrail; asking once more")
-        return check(self._ask(f"{prompt}\n\n{RULES_REMINDER}", system, plain=plain))
+        """The checked text; a rejected answer is asked again, naming why, up to ``requests``."""
+        asked = prompt
+        for request in range(1, requests + 1):
+            try:
+                return check(self._ask(asked, system, plain=plain))
+            except _UnavailableError as rejected:
+                if rejected.reason != GUARDRAIL_REJECTED or request == requests:
+                    raise
+                logger.info("an answer was rejected by the guardrail: %s", rejected.detail)
+                asked = _with_rules(prompt, rejected.detail)
+        raise AssertionError("unreachable: the last request returns or raises")  # pragma: no cover
 
     def _overall(self, text: _ChartText) -> JsonObject:
         return {
@@ -270,20 +289,45 @@ def _charts_of(analysis: JsonObject) -> list[ChartSeries]:
     return [*charts, chart] if chart is not None else charts
 
 
+def _with_rules(prompt: str, detail: str | None) -> str:
+    """The prompt with the rules added, and the line that names the last rejection."""
+    return "\n".join(line for line in (prompt, "", RULES_REMINDER, detail) if line is not None)
+
+
+def _unknown_figures(text: str, chart: ChartSeries | None) -> list[str]:
+    return [] if chart is None else figures_not_in_series(text, chart)
+
+
 def _evidence_checks_out(evidence: str, chart: ChartSeries | None) -> bool:
     if chart is None:
         return names_a_number(evidence)
     return evidence_is_in_series(evidence, chart)
 
 
-def _writes_only_known_numbers(text: str, chart: ChartSeries | None) -> bool:
-    return chart is None or names_only_numbers_of(text, chart)
-
-
 def _keeps(suggestion: Suggestion, chart: ChartSeries | None) -> bool:
-    return _evidence_checks_out(suggestion.evidence, chart) and _writes_only_known_numbers(
+    return _evidence_checks_out(suggestion.evidence, chart) and not _unknown_figures(
         suggestion.suggestion, chart
     )
+
+
+def _rejection(
+    summary: str, answer: Answer, claims: Sequence[str], chart: ChartSeries | None
+) -> str | None:
+    """The line that names the first rule the text breaks, or None when it breaks none."""
+    is_forecast = chart is not None and chart.is_forecast
+    for claim in claims:
+        found = forbidden_phrase_in(claim, is_forecast)
+        if found is not None:
+            return note_for_phrase(found)
+    for text in (answer.evidence, summary):
+        figures = _unknown_figures(text, chart)
+        if figures:
+            return note_for_figures(figures)
+    if not summary:
+        return note_for_missing("its summary was empty")
+    if not _evidence_checks_out(answer.evidence, chart):
+        return note_for_missing("its evidence named no figure")
+    return None
 
 
 def _checked(
@@ -291,17 +335,12 @@ def _checked(
 ) -> _ChartText:
     """The text of the chart, or ``GUARDRAIL_REJECTED`` for the chart."""
     series = None if chart is None else chart.id
-    is_forecast = chart is not None and chart.is_forecast
     summary = answer.summary.strip()
     recommended = list(answer.suggestions[:limit])
     claims = [summary, answer.evidence, *(f"{s.suggestion} {s.evidence}" for s in recommended)]
-    if (
-        not summary
-        or any(makes_forbidden_claim(c, is_forecast) for c in claims)
-        or not _evidence_checks_out(answer.evidence, chart)
-        or not _writes_only_known_numbers(summary, chart)
-    ):
-        raise _UnavailableError(GUARDRAIL_REJECTED)
+    detail = _rejection(summary, answer, claims, chart)
+    if detail is not None:
+        raise _UnavailableError(GUARDRAIL_REJECTED, detail)
     suggestions: list[JsonObject] = [
         {
             "suggestion": s.suggestion,

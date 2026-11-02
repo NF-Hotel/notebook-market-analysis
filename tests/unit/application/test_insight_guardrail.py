@@ -5,6 +5,8 @@ from app.application.insight_guardrail import (
     FORBIDDEN_PHRASES,
     FORECAST_PHRASES,
     evidence_is_in_series,
+    figures_not_in_series,
+    forbidden_phrase_in,
     makes_forbidden_claim,
     names_a_number,
     names_only_numbers_of,
@@ -200,3 +202,32 @@ def test_the_counts_of_a_title_are_figures_only_when_the_title_has_them() -> Non
     plain = ChartSeries("c", "Arrivals", "%", _monthly_series().points)
     assert not names_only_numbers_of("It is 102.", plain)
     assert names_only_numbers_of("It is 102.", _monthly_series())
+
+
+def test_the_forbidden_phrase_is_named_as_the_whole_word_with_a_little_context() -> None:
+    text = "The highest occupancy rate is predicted for March 2026 in the city."
+    assert (
+        forbidden_phrase_in(text) == '"predicted" in "occupancy rate is predicted for March 2026"'
+    )
+
+
+def test_a_forbidden_phrase_of_two_words_is_named_whole() -> None:
+    assert (
+        forbidden_phrase_in("Sales will increase.") == '"will increase" in "Sales will increase."'
+    )
+
+
+def test_no_forbidden_phrase_gives_none_and_the_forecast_words_pass_on_the_forecast_chart() -> None:
+    assert forbidden_phrase_in("The share was 24.7.") is None
+    assert forbidden_phrase_in("The forecast shows 150.", is_forecast_chart=True) is None
+    assert forbidden_phrase_in("The forecast shows 150.") is not None
+
+
+def test_the_figures_not_in_the_series_are_listed_as_written_once_each() -> None:
+    text = "No Deposit is 24.7%, not 1,278 or 45.1; 1,278 again."
+    assert figures_not_in_series(text, _series()) == ["1,278", "45.1"]
+
+
+def test_no_figure_missing_gives_an_empty_list() -> None:
+    assert figures_not_in_series("No Deposit is 24.7% and Refundable 15.5.", _series()) == []
+    assert figures_not_in_series("No numbers.", _series()) == []
