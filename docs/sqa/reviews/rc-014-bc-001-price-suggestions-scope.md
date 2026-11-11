@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-11-11 | Accepted | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent; accepted by the user in chat on 2026-11-11 | pending |
+| 2026-11-11 | Accepted | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent; accepted by the user in chat on 2026-11-11 | [ce805e3] |
 
 ---
 
@@ -49,3 +49,4 @@ Go: the criteria that the change touches pass, and the contract tests pass. The 
 [BC-001]: ../business-case.md
 [MIL-002]: ../milestones/mil-002-price-suggestions.md
 [QC-BC-001]: ../../../framework/qc/artifacts/qc-business-case.md
+[ce805e3]: https://github.com/NF-Hotel/notebook-market-analysis/commit/ce805e399fc20911193852933050e934c54306fb
