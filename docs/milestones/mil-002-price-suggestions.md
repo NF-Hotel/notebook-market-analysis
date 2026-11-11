@@ -11,7 +11,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-11-11 | Accepted | Jens Tirsvad Nielsen | S02 | Initial version; accepted by the user in chat on 2026-11-11 after RC-013 Go | pending |
+| 2026-11-11 | Accepted | Jens Tirsvad Nielsen | S02 | Initial version; accepted by the user in chat on 2026-11-11 after RC-013 Go | [db809a5] |
 
 ---
 
@@ -82,3 +82,4 @@ Decide whether the market analysis service can make the room price suggestions t
 [BC-001]: ../business-case.md
 [MIL-001]: ./mil-001-market-analysis-run-api.md
 [MIL-071]: https://github.com/NF-Hotel/NFHotel/blob/main/docs/milestones/mil-071-price-suggestions-from-the-service.md
+[db809a5]: https://github.com/NF-Hotel/notebook-market-analysis/commit/db809a5a0a5816b14bb3b23061f27a6727797383

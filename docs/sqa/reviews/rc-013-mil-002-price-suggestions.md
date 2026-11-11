@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-11-11 | Accepted | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent; accepted by the user in chat on 2026-11-11 | pending |
+| 2026-11-11 | Accepted | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent; accepted by the user in chat on 2026-11-11 | [db809a5] |
 
 ---
 
@@ -66,3 +66,4 @@ Go: every Mandatory criterion passes; two pass on condition (criterion 4 of QC-M
 [MIL-002]: ../../milestones/mil-002-price-suggestions.md
 [QC-MIL-001]: ../../../framework/qc/artifacts/qc-milestones-gateways.md
 [QC-LANG-001]: ../../../framework/qc/artifacts/qc-language-domain.md
+[db809a5]: https://github.com/NF-Hotel/notebook-market-analysis/commit/db809a5a0a5816b14bb3b23061f27a6727797383
