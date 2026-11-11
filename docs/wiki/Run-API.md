@@ -17,7 +17,7 @@ Every path except `/health` needs the header `X-API-Key`. Only one run is active
 
 | Status | Code | When |
 | --- | --- | --- |
-| 400 | `invalid_request` | An invalid booking, an unknown field type, an empty list or a `room_count` below 1. Nothing is stored. |
+| 400 | `invalid_request` | An invalid booking, an unknown field type, an empty list or a `room_count` below 1, or a `pricing` value out of range. Nothing is stored. |
 | 401 | `unauthorized` | The key is missing or wrong. |
 | 404 | `run_not_found` | The id is not known. |
 | 409 | `run_active` | Another run is queued or running. |
@@ -35,4 +35,4 @@ curl -s -H "X-API-Key: $KEY" http://market-analysis-api:8000/api/v1/market-analy
 curl -s -H "X-API-Key: $KEY" http://market-analysis-api:8000/api/v1/market-analysis/runs/$RUN_ID/result
 ```
 
-The body is described by `RunRequest` in `openapi/market-contract.yaml`. `room_count` (the rooms of the hotel) is needed for the occupancy analyses.
+The body is described by `RunRequest` in `openapi/market-contract.yaml`. `room_count` (the rooms of the hotel) is needed for the occupancy analyses. An optional `pricing` block asks for price suggestions; see [Price suggestions](Price-Suggestions).

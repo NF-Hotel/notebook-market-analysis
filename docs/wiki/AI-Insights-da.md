@@ -9,11 +9,15 @@ Med `insights=true` beder tjenesten den indstillede model (`AI_PROVIDER` med `OL
 - Ét kald pr. graf. Svaret har et resumé og én til tre anbefalinger, hver med de tal, den bygger på. Tekster er Markdown: en grafs resumé er to eller tre almindelige sætninger, med fed kun til nøgletal. Skriver en model alligevel en liste, en overskrift eller en tabel, gør tjenesten det til almindelige sætninger (fed bevares). Rå HTML i et svar (tags, kommentarer, `script` og `style` med indhold) fjernes før guardrail og før lagring.
 - Prognosen gives til modellen som en graf, så den må kommentere den.
 - Pr. analyse beholder resultatet `executive_summary` (en Markdown-liste med et punkt pr. graf, grafens navn med fed), `improvement_suggestions` og `observations` (én pr. graf, koblet med dens `series`-id). En graf, hvis tekst afvises af guardrail, spørges én gang til med samme kald, en kort påmindelse om reglerne (ingen årsag, løfte eller forudsigelse; kun tal fra serien; almindelige sætninger) og en linje, der nævner den regel, der afviste teksten: det forbudte ord med lidt omgivende tekst (fx `"predicted" in "rate is predicted for March"`) eller de tal, der ikke står i inputtet, som de er skrevet. Afvises dette svar også, mister grafen sin egen tekst og ingen andre grafer. Timeout, modelfejl og dårlig struktur spørges ikke igen ud over det ene nye forsøg ved dårlig struktur.
-- Prompten har en version (`PROMPT_VERSION`, nu `7`).
+- Prompten har en version (`PROMPT_VERSION`, nu `8`).
 
 ## Samlet fortolkning
 
 Efter graferne får modellen ét ekstra kald med et kompakt input på højst 4.000 tegn: for hver tilgængelig analyse dens navn, første sætning af resuméet (almindelig tekst) og dens største fund (tal og enhed) samt prognosens tal (ikke bookingerne og ikke anbefalingerne). Et langt input forkortes sætning for sætning, aldrig ved at udelade en analyse, så det er inden for kontekstvinduet (`OLLAMA_NUM_CTX`). Den skriver Markdown: hovedpunkter, hvad de betyder samlet, 2 til 4 anbefalinger og forbehold. Teksten gemmes som `insights.overall` med `source: ai` og mærkaten `AI-generated`. Samme guardrail gælder, og de tal, den må nævne, er tallene i dens input. I modsætning til graferne må den samlede tekst beskrive tjenestens prognose (ordet "forecast" er tilladt) og skal kopiere prognosens tal præcis, som de står i inputtet; årsager, løfter, egne forudsigelser og tal, der ikke er i inputtet, afvises stadig. En afvist samlet tekst bliver bedt om igen, op til tre kald i alt; hvert nyt kald har reglerne lagt til og nævner årsagen til, at den forrige tekst blev afvist (det forbudte ord, fx "predicted", eller tallene, der ikke står i inputtet). Prompten beder modellen skrive datafund i nutid eller datid og sige "the forecast of the service shows" om prognosen. Timeout og modelfejl bliver ikke bedt om igen. Er AI slået fra, har ingen analyse tekst, eller afvises svaret tre gange, er `insights.overall` en kort tekst bygget af det største fund i hver tilgængelig analyse, med `source: figures`. En afvist samlet tekst ændrer aldrig analyserne.
+
+## Prisforslag
+
+Teksterne til prisforslagene bedes om med egne prompts og et strengere tjek (intet andet tal, ingen anden måned, dato eller valuta end forslagets egne; idéer uden tal). Se [Prisforslag](Price-Suggestions-da).
 
 ## Guardrail
 

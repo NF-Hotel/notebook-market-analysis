@@ -1,6 +1,6 @@
 [English](Result) · **Dansk** · [Forside](Home-da)
 
-# Resultat (skema 1.2)
+# Resultat (skema 1.3)
 
 Resultatet af en afsluttet kørsel indeholder et resumé af input, datakvaliteten, ni analyser, bemærkninger, en `forecast` og, hvis det er bedt om, AI-`insights`.
 
@@ -30,7 +30,11 @@ Hver analyse har en `status` (`available` eller `unavailable`), en `formula` (hv
 
 ## Indsigter
 
-`insights` har `requested` og, med AI, `provider`, `model` og `prompt_version`. AI-tekster (`executive_summary`, `improvement_suggestions` og en observations `text`) er Markdown uden rå HTML. `insights.overall` er den samlede fortolkning af alle analyser og prognosen: `status`, `source`, `label` og `text` (Markdown). Med `source: ai` (mærkat `AI-generated`) har den også `generated_at`, `evidence` og `recommendations`; med `source: figures` er det en kort tekst, tjenesten bygger af det største fund i hver analyse, brugt når AI er slået fra, eller AI-teksten afvises. `overall` er en valgfri egenskab, så skemaet forbliver 1.2.
+`insights` har `requested` og, med AI, `provider`, `model` og `prompt_version`. AI-tekster (`executive_summary`, `improvement_suggestions` og en observations `text`) er Markdown uden rå HTML. `insights.overall` er den samlede fortolkning af alle analyser og prognosen: `status`, `source`, `label` og `text` (Markdown). Med `source: ai` (mærkat `AI-generated`) har den også `generated_at`, `evidence` og `recommendations`; med `source: figures` er det en kort tekst, tjenesten bygger af det største fund i hver analyse, brugt når AI er slået fra, eller AI-teksten afvises. `overall` er en valgfri egenskab, så den ændrede ikke skemaet.
+
+## Prisforslag
+
+`price_suggestions` er kun til stede, når kørslen bad om det med `pricing`. Skema 1.3 tilføjer dette ene valgfrie felt og ændrer intet andet, så en klient af skema 1.2 læser stadig resultatet. Se [Prisforslag](Price-Suggestions-da).
 
 ## Tal og grænser
 

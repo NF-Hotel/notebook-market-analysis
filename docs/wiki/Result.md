@@ -1,6 +1,6 @@
 **English** · [Dansk](Result-da)
 
-# Result (schema 1.2)
+# Result (schema 1.3)
 
 The result of a completed run holds the input summary, the data quality, nine analyses, notices, a `forecast` and, when asked, the AI `insights`.
 
@@ -30,7 +30,11 @@ The `forecast` is calculated by the service, not by the model. Each month is the
 
 ## Insights
 
-`insights` holds `requested`, and with AI `provider`, `model` and `prompt_version`. The texts of the AI (`executive_summary`, `improvement_suggestions` and the `text` of an observation) are Markdown without raw HTML. `insights.overall` is the overall interpretation of all analyses and the forecast: `status`, `source`, `label` and `text` (Markdown). With `source: ai` (label `AI-generated`) it also has `generated_at`, `evidence` and `recommendations`; with `source: figures` it is a short text the service builds from the largest finding of each analysis, used when AI is off or the AI text is rejected. `overall` is an optional property, so the schema stays 1.2.
+`insights` holds `requested`, and with AI `provider`, `model` and `prompt_version`. The texts of the AI (`executive_summary`, `improvement_suggestions` and the `text` of an observation) are Markdown without raw HTML. `insights.overall` is the overall interpretation of all analyses and the forecast: `status`, `source`, `label` and `text` (Markdown). With `source: ai` (label `AI-generated`) it also has `generated_at`, `evidence` and `recommendations`; with `source: figures` it is a short text the service builds from the largest finding of each analysis, used when AI is off or the AI text is rejected. `overall` is an optional property, so it did not change the schema.
+
+## Price suggestions
+
+`price_suggestions` is present only when the run asked for it with `pricing`. Schema 1.3 adds this one optional field and changes nothing else, so a client of schema 1.2 still reads the result. See [Price suggestions](Price-Suggestions).
 
 ## Figures and limits
 
