@@ -11,8 +11,8 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-10-20 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Initial version, written when the run API of the NFHotel web application had to move here from `Notebook_Market_Analysis`; accepted by the user in chat on 2026-10-20 after RC-001 Go | [34f6b14] |
-| 2026-10-20 | Accepted | Claude (AI) | AI at the request of the user, not independent | Amended: objective 2 and the scope name nine analyses (occupancy, occupancy on holidays and correlations added), asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-004 Go | [d2ae4cf] |
+| 2026-10-20 | Deprecated | Claude (AI) | AI at the request of the user, not independent | Amended: objective 2 and the scope name nine analyses (occupancy, occupancy on holidays and correlations added), asked for by S01 for a course assignment; accepted by the user in chat on 2026-10-20 after RC-004 Go | [d2ae4cf] |
+| 2026-11-11 | Accepted | Claude (AI) | S02 | Objective 5 and the scope name the price suggestions of the next two months (MIL-002); asked for by S01; accepted by the user in chat on 2026-11-11 | pending |
 
 ---
 
@@ -40,6 +40,7 @@ With the analysis in this service, the owner reads a market report in the back o
 2. Compute the nine analyses (lead time, holidays, seasonality, cancellations, room value, guest mix, occupancy, occupancy on holidays, correlations) from the bookings posted to a run and the number of rooms, with figures that a test checks by hand, each with its formula and its limitations.
 3. Write an executive summary and suggestions for each analysis, and an observation of what the AI sees for each chart, with a local AI model, and keep the numbers when the model fails or its output is rejected.
 4. Ship an image that builds from this repository alone and runs without a published host port.
+5. Make price suggestions for the next two months from the holiday calendar and the occupancy history of the bookings, by a fixed rule that the same input always gives the same result, with the AI only explaining them and marked as written by an AI, so that the web application can present them to its Manager (NFHotel objective 29, MIL-002).
 
 ## Scope
 
@@ -48,6 +49,7 @@ With the analysis in this service, the owner reads a market report in the back o
 - The run API, its contract, its key, its background run and its stored result.
 - The nine analyses and the AI insights with a guardrail.
 - The image and the compose file on the internal network of the NFHotel VM.
+- The price suggestions of the next two months (surcharge, discount, not enough history) and their explanations (MIL-002).
 
 ### Out of Scope
 
