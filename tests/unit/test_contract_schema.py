@@ -133,9 +133,9 @@ def test_start_run_refuses_with_stable_codes() -> None:
     assert set(responses) == {"202", "400", "401", "409"}
 
 
-def test_result_schema_version_is_1_2() -> None:
+def test_result_schema_version_is_1_2_or_1_3() -> None:
     schema = _contract()["components"]["schemas"]["RunResult"]
-    assert schema["properties"]["schema_version"]["const"] == "1.2"
+    assert schema["properties"]["schema_version"]["enum"] == ["1.2", "1.3"]
 
 
 def test_sample_result_with_nine_analyses_is_valid() -> None:
@@ -208,3 +208,32 @@ def test_invalid_run_request(change: Callable[[dict[str, Any]], object]) -> None
     request = _request()
     change(request)
     assert not _validator("RunRequest").is_valid(request)
+
+
+PRICE_SAMPLE = ROOT / "docs" / "test-data" / "price-suggestions-sample.json"
+
+
+def test_price_suggestions_sample_is_valid() -> None:
+    sample = json.loads(PRICE_SAMPLE.read_text(encoding="utf-8"))
+    _validator("PriceSuggestions").validate(sample)
+
+
+def test_run_result_with_price_suggestions_and_schema_1_3_is_valid() -> None:
+    result = _nine_analyses_result()
+    result["schema_version"] = "1.3"
+    result["price_suggestions"] = json.loads(PRICE_SAMPLE.read_text(encoding="utf-8"))
+    _validator("RunResult").validate(result)
+
+
+def test_pricing_block_of_the_request_may_be_empty_and_refuses_unknown_fields() -> None:
+    request = _request()
+    request["pricing"] = {}
+    _validator("RunRequest").validate(request)
+    request["pricing"] = {"surcharge": 20}
+    assert not _validator("RunRequest").is_valid(request)
+
+
+def test_a_price_suggestion_needs_its_figures_and_an_explanation() -> None:
+    sample = json.loads(PRICE_SAMPLE.read_text(encoding="utf-8"))
+    del sample["suggestions"][0]["history"]
+    assert not _validator("PriceSuggestions").is_valid(sample)
