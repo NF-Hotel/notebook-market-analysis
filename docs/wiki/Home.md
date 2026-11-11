@@ -10,6 +10,7 @@ A small service that analyses the bookings of a hotel and tells what they show. 
 - Calculates nine analyses with fixed formulas: lead time, holidays, seasonality, cancellations, room value (with room revenue), guest mix, occupancy, occupancy on holidays and correlations.
 - Calculates a forecast of the next 3 to 6 months of arrivals, occupancy and room revenue from the seasonal pattern of the history.
 - On request, asks a local AI model (Ollama or LM Studio) to describe each chart and to give recommendations. The model never calculates a figure.
+- On request (`pricing`), suggests price changes for the holidays and weeks of the next two months from the history of the same days, by a fixed rule; the AI only explains them.
 - Serves the holiday calendar that the web application uses.
 
 ## Where to read next
@@ -17,7 +18,8 @@ A small service that analyses the bookings of a hotel and tells what they show. 
 | Page | For |
 | --- | --- |
 | [Run API](Run-API) | The three paths, the errors and an example. |
-| [Result](Result) | What the result holds (schema 1.2) and how each figure is calculated. |
+| [Result](Result) | What the result holds (schema 1.3) and how each figure is calculated. |
+| [Price suggestions](Price-Suggestions) | The `pricing` block, the rule, the AI text and the limits. |
 | [AI insights](AI-Insights) | How the model is asked, the guardrail and the reasons an insight is unavailable. |
 | [Deployment](Deployment) | The settings, the container and the network. |
 | [Development](Development) | The checks to run, the layers and the plan-first workflow. |

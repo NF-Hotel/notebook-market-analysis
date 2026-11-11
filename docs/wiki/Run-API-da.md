@@ -35,4 +35,4 @@ curl -s -H "X-API-Key: $KEY" http://market-analysis-api:8000/api/v1/market-analy
 curl -s -H "X-API-Key: $KEY" http://market-analysis-api:8000/api/v1/market-analysis/runs/$RUN_ID/result
 ```
 
-Kroppen er beskrevet af `RunRequest` i `openapi/market-contract.yaml`. `room_count` (hotellets antal værelser) bruges til belægningsanalyserne.
+Kroppen er beskrevet af `RunRequest` i `openapi/market-contract.yaml`. `room_count` (hotellets antal værelser) bruges til belægningsanalyserne. En valgfri `pricing`-blok beder om prisforslag; se [Prisforslag](Price-Suggestions-da).
