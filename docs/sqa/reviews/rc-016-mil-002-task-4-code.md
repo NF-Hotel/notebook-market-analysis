@@ -9,7 +9,7 @@
 ## Version History
 | Date | Status | Author | Reviewer | Change | Commit |
 | --- | --- | --- | --- | --- | --- |
-| 2026-11-11 | Proposed | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent | pending |
+| 2026-11-11 | Proposed | Claude (AI) | S02 | Initial version; pre-review by the AI, not independent | [805dc87] |
 
 ---
 
@@ -59,3 +59,4 @@ Go: every Mandatory criterion passes; criterion 10 passes on condition (no DCD e
 
 [MIL-002]: ../milestones/mil-002-price-suggestions.md
 [QC-PY-001]: ../../../framework/qc/code/qc-programming-python.md
+[805dc87]: https://github.com/NF-Hotel/notebook-market-analysis/commit/805dc872cba32ffb4b4243cc8ff0b5631f1088fd
