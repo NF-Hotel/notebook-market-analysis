@@ -114,8 +114,8 @@ def _rec(suggestion: str = "Check it.", evidence: str = "15.5") -> dict[str, obj
 
 def test_info_names_the_provider_the_model_and_the_prompt_version() -> None:
     info = _provider(FakeModelClient(scripted())).info()
-    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "7"}
-    assert PROMPT_VERSION == "7"
+    assert info == {"provider": "fake", "model": "fake-1", "prompt_version": "8"}
+    assert PROMPT_VERSION == "8"
 
 
 def test_an_available_insight_carries_the_label_provider_model_and_time() -> None:
@@ -469,7 +469,7 @@ def test_every_analysis_of_a_run_gets_its_insight_and_every_chart_its_text() -> 
         "requested": True,
         "provider": "fake",
         "model": "fake-1",
-        "prompt_version": "7",
+        "prompt_version": "8",
         "overall": result["insights"]["overall"],
     }
     assert result["insights"]["overall"]["source"] == "ai"
