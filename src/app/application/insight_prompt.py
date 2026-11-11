@@ -9,7 +9,7 @@ from app.application.chart_series import ChartSeries
 from app.application.documents import JsonObject
 from app.application.insight_answer import MAX_OVERALL_RECOMMENDATIONS, MAX_RECOMMENDATIONS
 
-PROMPT_VERSION = "7"
+PROMPT_VERSION = "8"
 # The line that holds the chart; the fake model of the tests reads it. It is a list of the one
 # chart, and an empty list for an analysis that has no chart.
 CHARTS_PREFIX = "CHARTS: "
