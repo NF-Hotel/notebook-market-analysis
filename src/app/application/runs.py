@@ -6,7 +6,7 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from functools import partial
 
 from app.application.analyse_market import analyse_market
@@ -14,8 +14,13 @@ from app.application.documents import JsonObject
 from app.application.market_result import build_market_result
 from app.application.ports.holiday_calendar_source import HolidayCalendarSource
 from app.application.ports.insight_provider import InsightProvider
+from app.application.ports.model_client import TimeLimits
+from app.application.ports.price_text_provider import PriceTextProvider
 from app.application.ports.run_store import RunStore
 from app.application.ports.task_runner import TaskRunner
+from app.application.price_explanations import PriceExplainer
+from app.application.price_result import price_suggestions_document
+from app.domain.analyses.price_suggestions import PricingRequest, suggest_prices
 from app.domain.booking import Booking
 from app.domain.errors import (
     InvalidRequest,
@@ -35,6 +40,7 @@ from app.domain.run import (
 
 logger = logging.getLogger(__name__)
 
+_NO_LIMITS = TimeLimits(1.0, 1.0)  # the explainer without a model never waits
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], str]
 
@@ -45,13 +51,16 @@ class StartRunCommand:
     room_count: int
     period: Period | None
     insights: bool
+    pricing: PricingRequest | None = None
 
 
-def _validate(command: StartRunCommand) -> None:
+def _validate(command: StartRunCommand, today: date) -> None:
     if not command.bookings:
         raise InvalidRequest("at least one booking is needed")
     if command.room_count < 1:
         raise InvalidRequest("room_count must be at least 1")
+    if command.pricing is not None:
+        command.pricing.settings(today)  # refuses a value out of range before anything is stored
 
 
 class ExecuteRun:
@@ -64,10 +73,14 @@ class ExecuteRun:
         insights: InsightProvider,
         clock: Clock,
         new_id: IdFactory,
+        price_texts: PriceTextProvider | None = None,
     ) -> None:
         self._store = store
         self._calendars = calendars
         self._insights = insights
+        # With no AI text provider, or with insights off, the texts are built from the figures.
+        self._fallback_price_texts: PriceTextProvider = PriceExplainer(None, _NO_LIMITS, 1)
+        self._price_texts = price_texts or self._fallback_price_texts
         self._clock = clock
         self._new_id = new_id
 
@@ -91,9 +104,19 @@ class ExecuteRun:
 
     def _analyse(self, command: StartRunCommand) -> JsonObject:
         bookings = command.bookings
+        settings = None
+        if command.pricing is not None:
+            settings = command.pricing.settings(self._clock().date())
         first_year, last_year = _years_of(bookings, command.period)
+        if settings is not None:
+            last_year = max(last_year, settings.horizon_end.year)
         calendar = self._calendars.covering(first_year, last_year)
         analysis = analyse_market(bookings, command.room_count, calendar, command.period)
+        prices = None
+        if settings is not None:
+            found = suggest_prices(bookings, command.room_count, calendar, settings, command.period)
+            texts = self._price_texts if command.insights else self._fallback_price_texts
+            prices = price_suggestions_document(found, texts)
         return build_market_result(
             analysis,
             bookings,
@@ -101,6 +124,7 @@ class ExecuteRun:
             self._new_id(),
             self._clock(),
             self._insights if command.insights else None,
+            prices,
         )
 
     def _fail(self, run_id: str, error_code: str) -> None:
@@ -139,7 +163,7 @@ class StartRun:
 
     def start(self, command: StartRunCommand) -> Run:
         """Return the queued run at once. Nothing is stored when the request is refused."""
-        _validate(command)
+        _validate(command, self._clock().date())
         with self._lock:
             if self._store.active_runs():
                 raise RunAlreadyActive("another run is queued or running")

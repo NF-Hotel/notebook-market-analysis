@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, ValidationError
 
 from app.application.runs import GetRun, GetRunResult, StartRun, StartRunCommand
+from app.domain.analyses.price_suggestions import PricingRequest
 from app.domain.booking import Booking
 from app.domain.errors import InvalidRequest
 from app.domain.period import Period
@@ -63,9 +64,38 @@ class PeriodModel(_Strict):
     last_date: date
 
 
+class PricingModel(_Strict):
+    as_of: date | None = None
+    horizon_days: int | None = None
+    high_occupancy_threshold: float | None = None
+    low_occupancy_threshold: float | None = None
+    surcharge_percent: float | None = None
+    discount_percent: float | None = None
+    discount_room_sizes: list[str] | None = None
+    min_history_years: int | None = None
+
+    def to_domain(self) -> PricingRequest:
+        def text(value: float | None) -> str | None:
+            return None if value is None else str(Decimal(str(value)))
+
+        return PricingRequest(
+            as_of=self.as_of,
+            horizon_days=self.horizon_days,
+            high_occupancy_threshold=text(self.high_occupancy_threshold),
+            low_occupancy_threshold=text(self.low_occupancy_threshold),
+            surcharge_percent=text(self.surcharge_percent),
+            discount_percent=text(self.discount_percent),
+            discount_room_sizes=(
+                None if self.discount_room_sizes is None else tuple(self.discount_room_sizes)
+            ),
+            min_history_years=self.min_history_years,
+        )
+
+
 class RunRequestModel(_Strict):
     room_count: int = Field(ge=1)
     period: PeriodModel | None = None
+    pricing: PricingModel | None = None
     bookings: list[BookingModel] = Field(min_length=1)
 
 
@@ -87,8 +117,9 @@ def _command_of(body: bytes, insights: bool) -> StartRunCommand:
     period = None
     if request.period is not None:
         period = Period(request.period.first_date, request.period.last_date)
+    pricing = request.pricing.to_domain() if request.pricing is not None else None
     return StartRunCommand(
-        [b.to_domain() for b in request.bookings], request.room_count, period, insights
+        [b.to_domain() for b in request.bookings], request.room_count, period, insights, pricing
     )
 
 

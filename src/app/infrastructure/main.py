@@ -18,6 +18,7 @@ from app.application.insights import UnconfiguredInsightProvider
 from app.application.model_insights import ModelInsightProvider
 from app.application.ports.insight_provider import InsightProvider
 from app.application.ports.model_client import ModelClient, TimeLimits
+from app.application.price_explanations import PriceExplainer
 from app.application.runs import ExecuteRun, GetRun, GetRunResult, RecoverInterruptedRuns, StartRun
 from app.infrastructure.config import AIProviderName, Settings, load_settings
 
@@ -49,12 +50,27 @@ def build_insight_provider(settings: Settings) -> InsightProvider:
     )
 
 
+def build_price_texts(settings: Settings) -> PriceExplainer:
+    """The explainer of the price suggestions; with no model name it gives the figures text."""
+    model = settings.ai_model
+    limits = TimeLimits(settings.ai_stall_timeout_seconds, settings.ai_total_limit_seconds)
+    client = None if model is None else _model_client(settings, model)
+    return PriceExplainer(client, limits, settings.ai_max_output_tokens)
+
+
 def build_app(settings: Settings) -> FastAPI:
     holidays = HolidayService(FileHolidayStore(settings.output_directory / "holidays.json"))
     runs = FileRunStore(settings.output_directory / RUNS_FOLDER)
     # A run left queued or running by a restart will never finish.
     RecoverInterruptedRuns(runs, _now).recover()
-    execute = ExecuteRun(runs, holidays, build_insight_provider(settings), _now, _new_id)
+    execute = ExecuteRun(
+        runs,
+        holidays,
+        build_insight_provider(settings),
+        _now,
+        _new_id,
+        build_price_texts(settings),
+    )
     start = StartRun(runs, ThreadTaskRunner(), execute, _now, _new_id)
     token = settings.api_token.get_secret_value() if settings.api_token else None
     return create_api(

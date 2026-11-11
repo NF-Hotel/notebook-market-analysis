@@ -99,7 +99,7 @@ def test_the_result_validates_with_missing_optional_values() -> None:
 def test_the_envelope_holds_the_nine_analyses_and_the_input() -> None:
     bookings = _bookings()
     result = _build(bookings)
-    assert result["schema_version"] == "1.2"
+    assert result["schema_version"] == "1.3"
     assert result["result_id"] == RESULT_ID
     assert result["generated_at"] == "2026-05-01T08:00:00+00:00"
     assert set(result["analyses"]) == NINE
