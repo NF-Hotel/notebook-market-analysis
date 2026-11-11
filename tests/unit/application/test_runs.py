@@ -1,11 +1,14 @@
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
 from app.application.holidays import HolidayService
 from app.application.insights import UnconfiguredInsightProvider
 from app.application.ports.insight_provider import InsightProvider
+from app.application.ports.price_text_provider import PriceTextProvider
 from app.application.runs import (
     ExecuteRun,
     GetRun,
@@ -14,6 +17,7 @@ from app.application.runs import (
     StartRun,
     StartRunCommand,
 )
+from app.domain.analyses.price_suggestions import PriceSuggestion, PricingRequest
 from app.domain.booking import Booking
 from app.domain.errors import (
     InvalidRequest,
@@ -92,7 +96,7 @@ def test_the_run_completes_when_the_runner_runs_it() -> None:
     assert done.state is RunState.COMPLETED
     assert done.started_at is not None
     assert done.finished_at is not None
-    assert setup.result.get(run.run_id)["schema_version"] == "1.2"
+    assert setup.result.get(run.run_id)["schema_version"] == "1.3"
 
 
 def test_a_second_start_while_one_is_queued_is_refused() -> None:
@@ -249,3 +253,99 @@ def test_interrupted_runs_are_marked_failed_at_start_up() -> None:
     assert store.runs["b"].state is RunState.FAILED
     assert store.runs["c"].state is RunState.COMPLETED
     assert store.active_runs() == []
+
+
+class _AiTexts:
+    """A text provider that writes the same words for every suggestion."""
+
+    def explain(self, suggestion: PriceSuggestion) -> dict[str, object]:
+        return {"text": "Written by the model.", "ai_written": True}
+
+    def ideas(self, suggestions: Sequence[PriceSuggestion]) -> list[dict[str, object]]:
+        return [{"text": "Offer a breakfast package.", "ai_written": True}]
+
+
+def _priced_setup(texts: PriceTextProvider | None = None) -> Setup:
+    setup = Setup()
+    setup.execute = ExecuteRun(
+        setup.store,
+        HolidayService(EmptyHolidayStore()),
+        UnconfiguredInsightProvider(),
+        SteppingClock(),
+        SequentialIds(),
+        texts,
+    )
+    setup.start = StartRun(
+        setup.store, setup.runner, setup.execute, SteppingClock(), SequentialIds()
+    )
+    return setup
+
+
+def _priced_command(insights: bool = True) -> StartRunCommand:
+    bookings = [make_booking(arrival_date=date(2024, 12, 24), stays_in_week_nights=3)]
+    pricing = PricingRequest(as_of=date(2025, 11, 20), horizon_days=61)
+    return StartRunCommand(
+        bookings, 2, Period(date(2024, 1, 1), date(2024, 12, 31)), insights, pricing
+    )
+
+
+def _priced_result(setup: Setup, command: StartRunCommand) -> dict[str, Any]:
+    run = setup.start.start(command)
+    setup.runner.run_all()
+    return setup.result.get(run.run_id)
+
+
+def test_a_run_without_pricing_has_no_price_suggestions() -> None:
+    setup = Setup()
+    run = setup.start.start(_command())
+    setup.runner.run_all()
+    assert "price_suggestions" not in setup.result.get(run.run_id)
+
+
+def test_a_run_with_pricing_carries_the_suggestions_of_the_horizon() -> None:
+    result = _priced_result(_priced_setup(), _priced_command())
+    prices = result["price_suggestions"]
+    assert (prices["as_of"], prices["horizon_end"]) == ("2025-11-20", "2026-01-19")
+    # only one earlier year (2024) is in the bookings, and two are needed
+    assert prices["suggestions"] == []
+    assert any(m["holiday"] == "Christmas Day" for m in prices["not_enough_history"])
+
+
+def test_the_texts_of_the_ai_change_no_figure_of_a_suggestion() -> None:
+    bookings = [make_booking(arrival_date=date(2024, 12, 24), stays_in_week_nights=3)]
+    bookings += [make_booking(booking_id=2, arrival_date=date(2025, 1, 2), stays_in_week_nights=1)]
+    pricing = PricingRequest(as_of=date(2026, 1, 5), horizon_days=30, min_history_years=1)
+    command = StartRunCommand(
+        bookings, 1, Period(date(2024, 1, 1), date(2025, 12, 31)), True, pricing
+    )
+    with_ai = _priced_result(_priced_setup(_AiTexts()), command)["price_suggestions"]
+    without = _priced_result(_priced_setup(), command)["price_suggestions"]
+    assert with_ai["suggestions"] != []
+
+    def figures(prices: dict[str, Any]) -> list[dict[str, Any]]:
+        return [{k: v for k, v in s.items() if k != "explanation"} for s in prices["suggestions"]]
+
+    assert figures(with_ai) == figures(without)
+    assert {s["explanation"]["ai_written"] for s in with_ai["suggestions"]} == {True}
+    assert {s["explanation"]["ai_written"] for s in without["suggestions"]} == {False}
+    assert with_ai["ideas"] != []
+    assert without["ideas"] == []
+
+
+def test_with_insights_off_the_texts_are_built_from_the_figures() -> None:
+    bookings = [make_booking(arrival_date=date(2024, 12, 24), stays_in_week_nights=3)]
+    pricing = PricingRequest(as_of=date(2026, 1, 5), horizon_days=30, min_history_years=1)
+    command = StartRunCommand(
+        bookings, 1, Period(date(2024, 1, 1), date(2025, 12, 31)), False, pricing
+    )
+    prices = _priced_result(_priced_setup(_AiTexts()), command)["price_suggestions"]
+    assert {s["explanation"]["ai_written"] for s in prices["suggestions"]} == {False}
+    assert prices["ideas"] == []
+
+
+def test_pricing_out_of_range_is_refused_and_nothing_is_stored() -> None:
+    setup = _priced_setup()
+    command = StartRunCommand([make_booking()], 2, None, True, PricingRequest(horizon_days=3))
+    with pytest.raises(InvalidRequest):
+        setup.start.start(command)
+    assert setup.store.runs == {}

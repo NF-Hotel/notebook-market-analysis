@@ -81,6 +81,37 @@ class PricingSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class PricingRequest:
+    """What a run asked for with ``pricing``; a value that is ``None`` takes the default."""
+
+    as_of: date | None = None
+    horizon_days: int | None = None
+    high_occupancy_threshold: str | None = None
+    low_occupancy_threshold: str | None = None
+    surcharge_percent: str | None = None
+    discount_percent: str | None = None
+    discount_room_sizes: tuple[str, ...] | None = None
+    min_history_years: int | None = None
+
+    def settings(self, today: date) -> PricingSettings:
+        """The settings with the defaults filled in; ``today`` is the start when none is given."""
+        given = {
+            name: value
+            for name, value in (
+                ("horizon_days", self.horizon_days),
+                ("high_occupancy_threshold", self.high_occupancy_threshold),
+                ("low_occupancy_threshold", self.low_occupancy_threshold),
+                ("surcharge_percent", self.surcharge_percent),
+                ("discount_percent", self.discount_percent),
+                ("discount_room_sizes", self.discount_room_sizes),
+                ("min_history_years", self.min_history_years),
+            )
+            if value is not None
+        }
+        return PricingSettings(self.as_of or today, **given)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True, slots=True)
 class PriceSuggestion:
     room_size: str
     first_date: date

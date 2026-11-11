@@ -110,13 +110,13 @@ def test_the_state_follows_queued_running_completed(tmp_path: Path) -> None:
     assert "error_code" not in final
 
 
-def test_the_result_of_a_completed_run_is_schema_1_2_and_valid(service: Service) -> None:
+def test_the_result_of_a_completed_run_is_schema_1_3_and_valid(service: Service) -> None:
     run_id = service.post(request_body()).json()["run_id"]
     service.runner.run_all()
     response = service.get(f"{RUNS}/{run_id}/result")
     assert response.status_code == 200
     result = response.json()
-    assert result["schema_version"] == "1.2"
+    assert result["schema_version"] == "1.3"
     assert len(result["analyses"]) == 9
     _validator().validate(result)
 
@@ -319,7 +319,7 @@ def _generated(count: int) -> list[dict[str, Any]]:
 
 
 def test_a_run_of_55484_bookings_completes_in_under_60_seconds(service: Service) -> None:
-    body = request_body(room_count=300, bookings=_generated(BOOKING_COUNT))
+    body = request_body(room_count=300, bookings=_generated(BOOKING_COUNT), pricing={})
     started = time.perf_counter()
     response = service.post(body, insights="false")
     assert response.status_code == 202
@@ -328,4 +328,35 @@ def test_a_run_of_55484_bookings_completes_in_under_60_seconds(service: Service)
     run_id = response.json()["run_id"]
     assert service.get(f"{RUNS}/{run_id}").json()["state"] == "completed"
     assert service.get(f"{RUNS}/{run_id}/result").json()["input"]["record_count"] == BOOKING_COUNT
+    assert "price_suggestions" in service.get(f"{RUNS}/{run_id}/result").json()
     assert elapsed < TIME_LIMIT_SECONDS
+
+
+def test_a_run_with_pricing_gives_a_result_that_the_contract_accepts(service: Service) -> None:
+    pricing = {"as_of": "2024-02-01", "horizon_days": 30, "min_history_years": 1}
+    run_id = service.post(request_body(pricing=pricing)).json()["run_id"]
+    service.runner.run_all()
+    result = service.get(f"{RUNS}/{run_id}/result").json()
+    assert result["schema_version"] == "1.3"
+    assert result["price_suggestions"]["as_of"] == "2024-02-01"
+    _validator().validate(result)
+
+
+def test_a_run_without_pricing_has_no_price_suggestions_in_its_result(service: Service) -> None:
+    run_id = service.post(request_body()).json()["run_id"]
+    service.runner.run_all()
+    assert "price_suggestions" not in service.get(f"{RUNS}/{run_id}/result").json()
+
+
+@pytest.mark.parametrize(
+    "pricing",
+    [{"horizon_days": 3}, {"surcharge_percent": 0}, {"unknown": 1}, {"as_of": "tomorrow"}],
+    ids=["horizon", "surcharge", "unknown-field", "bad-date"],
+)
+def test_pricing_out_of_range_is_refused_with_400_and_nothing_is_stored(
+    service: Service, pricing: dict[str, Any]
+) -> None:
+    response = service.post(request_body(pricing=pricing))
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_request"
+    assert _stored_runs(service) == []

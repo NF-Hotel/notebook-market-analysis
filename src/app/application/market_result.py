@@ -1,4 +1,4 @@
-"""Builds the result document of a run (result schema 1.2) from the nine analyses
+"""Builds the result document of a run (result schema 1.3) from the nine analyses
 and the forecast.
 
 The function is deterministic: the id and the time of the result are passed in.
@@ -33,7 +33,7 @@ from app.application.ports.insight_provider import InsightProvider
 from app.domain.booking import OPTIONAL_FIELDS, Booking
 from app.domain.holidays import HolidayCalendar
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 INPUT_SOURCE = "supplied"
 INPUT_REFERENCE = "request-body"
 NO_LEAD_TIME = "NO_LEAD_TIME"
@@ -169,8 +169,12 @@ def build_market_result(
     result_id: str,
     generated_at: datetime,
     insights: InsightProvider | None,
+    price_suggestions: JsonObject | None = None,
 ) -> JsonObject:
-    """The result document. ``insights`` is None when no insight was asked for."""
+    """The result document. ``insights`` is None when no insight was asked for.
+
+    ``price_suggestions`` is the document of the suggestions when the run asked for them.
+    """
     analyses = _analyses(result, calendar)
     forecast = forecast_findings(result.forecast)
     notices: list[JsonObject] = []
@@ -191,7 +195,7 @@ def build_market_result(
             )
         overall = insights.overall_for(analyses, forecast)
     insights_section["overall"] = overall or figures_overall(analyses)
-    return {
+    document: JsonObject = {
         "schema_version": SCHEMA_VERSION,
         "result_id": result_id,
         "generated_at": generated_at.isoformat(),
@@ -210,3 +214,6 @@ def build_market_result(
         "notices": notices,
         "insights": insights_section,
     }
+    if price_suggestions is not None:
+        document["price_suggestions"] = price_suggestions
+    return document

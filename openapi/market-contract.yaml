@@ -441,6 +441,10 @@ components:
       properties:
         as_of: {type: string, format: date}
         horizon_end: {type: string, format: date}
+        formula: {type: string, description: How the suggestions are worked out.}
+        limitations:
+          type: array
+          items: {type: string}
         suggestions:
           type: array
           items: {$ref: "#/components/schemas/PriceSuggestion"}
