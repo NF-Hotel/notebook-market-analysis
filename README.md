@@ -154,7 +154,7 @@ A run started with `insights=true` asks the selected model (`AI_PROVIDER` with `
 - **Guardrail.** A summary or suggestion with a causal or forecast phrase (`FORBIDDEN_PHRASES` in `src/app/application/insight_guardrail.py`) rejects the insight. An observation is dropped when its series is not one of the charts, its evidence names no number, or it names a number that is not in its series (a share of 22.3 may be written 22.3, 22.3%, 22, or 0.223).
 - **Chart ids.** The `series` of an observation is the id the web application gives the chart (`src/app/application/chart_series.py` follows `FindingsSeries.cs` of the web application).
 
-## Running tests *(planned)*
+## Running tests
 
 ```powershell
 pytest                      # unit + API + integration; no AI service required
@@ -162,6 +162,7 @@ pytest tests/unit
 ruff check . ; ruff format --check .
 mypy src
 lint-imports                # architecture (dependency direction) contracts
+yamllint .                  # the YAML files, with .yamllint.yaml
 ```
 
 Automated tests use fake AI providers and mocked HTTP. A running Ollama or LM Studio instance is never required.

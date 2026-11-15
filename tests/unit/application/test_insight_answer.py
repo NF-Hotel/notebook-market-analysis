@@ -11,10 +11,23 @@ CONTRACT = Path(__file__).parents[3] / "openapi" / "market-contract.yaml"
 SERVICE_FIELDS = {"status", "reason", "label", "provider", "model", "generated_at"}
 
 
-def _contract_insight() -> dict[str, Any]:
+def _contract_schemas() -> dict[str, Any]:
     contract = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))
-    insight: dict[str, Any] = contract["components"]["schemas"]["Insight"]
-    return insight
+    schemas: dict[str, Any] = contract["components"]["schemas"]
+    return schemas
+
+
+def _merged(schema: dict[str, Any], schemas: dict[str, Any]) -> dict[str, Any]:
+    """The properties and the required list of a schema, its `$ref` and `allOf` resolved."""
+    if "$ref" in schema:
+        return _merged(schemas[schema["$ref"].removeprefix("#/components/schemas/")], schemas)
+    properties: dict[str, Any] = dict(schema.get("properties", {}))
+    required: list[str] = list(schema.get("required", []))
+    for part in schema.get("allOf", []):
+        resolved = _merged(part, schemas)
+        properties |= resolved["properties"]
+        required += resolved["required"]
+    return {"properties": properties, "required": required}
 
 
 def _without_descriptions(node: Any) -> Any:  # noqa: ANN401 - schema tree
@@ -24,8 +37,11 @@ def _without_descriptions(node: Any) -> Any:  # noqa: ANN401 - schema tree
 
 
 def test_the_answer_schema_agrees_with_the_insight_of_the_contract() -> None:
-    properties = _contract_insight()["properties"]
-    suggestion = _without_descriptions(properties["improvement_suggestions"]["items"])
+    schemas = _contract_schemas()
+    properties = schemas["Insight"]["properties"]
+    # The contract builds a suggestion from the shared Recommendation schema and `series`.
+    items = properties["improvement_suggestions"]["items"]
+    suggestion = _without_descriptions(_merged(items, schemas))
     observation = properties["observations"]["items"]["properties"]
     asked = ANSWER_SCHEMA["properties"]["recommendations"]["items"]
     # The service adds the chart (`series`) to each recommendation and to the observation.

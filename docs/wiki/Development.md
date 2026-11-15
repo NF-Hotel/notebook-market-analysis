@@ -14,9 +14,14 @@ ruff check .
 ruff format --check .
 mypy src
 lint-imports
+yamllint .
 ```
 
 Automated tests use fake AI providers and mocked HTTP. A running Ollama or LM Studio is never required.
+
+## Load test
+
+`tests/unit/adapters/api/test_market_analysis_api.py` makes one run of 55,484 generated bookings with insights on, the real insight code and a fake model (MIL-001 criterion 7). The run must complete in under 60 seconds, and the peak resident set of the test process must stay under the `mem_limit` of `deploy/docker-compose.yml`. The peak is read with the POSIX `resource` module, so the memory test is skipped on Windows; run the tests on Linux (in WSL, for example) to see it.
 
 ## Plan first
 

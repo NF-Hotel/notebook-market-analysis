@@ -1,0 +1,12 @@
+---
+# Settings of yamllint for the YAML files of this repository (deploy/docker-compose.yml,
+# openapi/market-contract.yaml and this file): the defaults, with the line length of ruff in
+# pyproject.toml. MIL-001 criterion 9 asks for a clean run; run `yamllint .` before a pull
+# request (README.md, "Running tests").
+extends: default
+
+ignore-from-file: .gitignore
+
+rules:
+  line-length:
+    max: 100

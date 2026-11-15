@@ -27,7 +27,7 @@ def _body(calendar: HolidayCalendar) -> dict[str, Any]:
     }
 
 
-def holiday_router(service: HolidayService, auth: Any) -> APIRouter:  # noqa: ANN401
+def holiday_router(service: HolidayService, auth: Any) -> APIRouter:  # noqa: ANN401 - a dependency
     """Routes for ``/api/v1/holidays``; ``auth`` is a FastAPI dependency that checks the key."""
     router = APIRouter(prefix="/api/v1/holidays", dependencies=[Depends(auth)])
 

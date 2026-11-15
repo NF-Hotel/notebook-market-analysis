@@ -37,6 +37,10 @@ def test_without_a_configured_token_everything_but_health_is_refused(tmp_path: P
 
 
 def test_get_returns_the_contract_shape(client: TestClient) -> None:
+    # Stored first, so the test does not depend on the year it runs in (the calendar that a
+    # first GET generates spans the previous year to two years ahead of today).
+    params = {"first_year": 2025, "last_year": 2025}
+    assert client.post("/api/v1/holidays/update", params=params, headers=KEY).status_code == 200
     body = client.get("/api/v1/holidays", params={"year": 2025}, headers=KEY).json()
     assert body["country"] == "DK"
     assert (body["first_year"], body["last_year"]) == (2025, 2025)

@@ -25,7 +25,7 @@ def make_booking(**changes: Any) -> Booking:  # noqa: ANN401 - field overrides o
     return Booking(**fields)
 
 
-def stay(arrival: date, nights: int, **changes: Any) -> Booking:  # noqa: ANN401
+def stay(arrival: date, nights: int, **changes: Any) -> Booking:  # noqa: ANN401 - field values
     """A booking of ``nights`` week nights from ``arrival``."""
     return make_booking(arrival_date=arrival, stays_in_week_nights=nights, **changes)
 

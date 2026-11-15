@@ -45,4 +45,4 @@ AI'en forklarer kun. Hvert forslag har en `explanation` med `ai_written`, og res
 - En helligdag eller uge kræver mindst to tidligere år inden for bookingerne (som standard).
 - AI-teksten kan være vag eller skrive "konsekvent", hvor ét tidligere år lå under grænsen; guardrailen tjekker tal og måneder, ikke hver sammenligning. Tallene står altid ved siden af teksten.
 
-Kontrakten er `PricingRequest` og `PriceSuggestionSet` i `openapi/market-contract.yaml`.
+Kontrakten er `PricingRequest` og `PriceSuggestions` i `openapi/market-contract.yaml`.

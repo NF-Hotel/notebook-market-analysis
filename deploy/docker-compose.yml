@@ -1,10 +1,12 @@
+---
 # The market analysis service. Read by Docker Compose. Settings live in market-analysis.env
 # (git-ignored); copy market-analysis.env.example first. Start with, from this folder:
 #   docker compose --env-file market-analysis.env up -d --build
 # No host port is published and nginx has no route to the service. It runs beside NFHotel on the
 # same VM and joins the internal network of the web application and API (NFHotel ADR-0004). The
 # web application calls it at http://market-analysis-api:8000 with the header X-API-Key.
-# The compose project is named nfanalysis so that it cannot replace NFHotel's own deploy/market-analysis.
+# The compose project is named nfanalysis so that it cannot replace NFHotel's own
+# deploy/market-analysis.
 name: nfanalysis
 
 services:
