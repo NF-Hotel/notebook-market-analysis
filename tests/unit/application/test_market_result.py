@@ -1,6 +1,6 @@
 import json
 import random
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
@@ -19,7 +19,7 @@ from tests.unit.booking_factory import make_booking
 from tests.unit.run_fakes import RecordingInsightProvider
 
 CONTRACT = Path(__file__).parents[3] / "openapi" / "market-contract.yaml"
-GENERATED_AT = datetime(2026, 5, 1, 8, 0, tzinfo=timezone.utc)  # noqa: UP017
+GENERATED_AT = datetime(2026, 5, 1, 8, 0, tzinfo=UTC)
 RESULT_ID = "5b3f0e1a-0000-4000-8000-0000000000a1"
 NINE = {
     "lead_time",

@@ -95,7 +95,7 @@ class RecordingInsightProvider:
         return None
 
 
-def booking_body(number: int = 1, **changes: Any) -> dict[str, Any]:  # noqa: ANN401
+def booking_body(number: int = 1, **changes: Any) -> dict[str, Any]:  # noqa: ANN401 - JSON values
     body: dict[str, Any] = {
         "booking_id": number,
         "hotel": "City Hotel",
@@ -109,7 +109,7 @@ def booking_body(number: int = 1, **changes: Any) -> dict[str, Any]:  # noqa: AN
     return body
 
 
-def request_body(**changes: Any) -> dict[str, Any]:  # noqa: ANN401
+def request_body(**changes: Any) -> dict[str, Any]:  # noqa: ANN401 - JSON values
     body: dict[str, Any] = {"room_count": 2, "bookings": [booking_body()]}
     body.update(changes)
     return body

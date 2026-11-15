@@ -69,10 +69,10 @@ class Service:
         )
         self.client = TestClient(app)
 
-    def post(self, body: object, **params: Any) -> Any:  # noqa: ANN401
+    def post(self, body: object, **params: Any) -> Any:  # noqa: ANN401 - a test client response
         return self.client.post(RUNS, content=json.dumps(body), params=params, headers=KEY)
 
-    def get(self, path: str) -> Any:  # noqa: ANN401
+    def get(self, path: str) -> Any:  # noqa: ANN401 - a test client response
         return self.client.get(path, headers=KEY)
 
 
