@@ -1,5 +1,7 @@
 .venv/
 .env
+# The env file of the deploy folder holds the real API token; only its example is committed.
+deploy/*.env
 __pycache__/
 *.py[cod]
 *.egg-info/

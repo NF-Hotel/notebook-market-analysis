@@ -45,4 +45,4 @@ The AI only explains. Each suggestion has an `explanation` with `ai_written`, an
 - A holiday or week needs at least two earlier years inside the bookings (by default).
 - The AI text can be vague, or say "consistently" where one earlier year was below the threshold; the guardrail checks the numbers and the months, not every comparison. The figures are always given beside the text.
 
-The contract is `PricingRequest` and `PriceSuggestionSet` in `openapi/market-contract.yaml`.
+The contract is `PricingRequest` and `PriceSuggestions` in `openapi/market-contract.yaml`.

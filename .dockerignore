@@ -1,6 +1,7 @@
 .git
 .venv
 .env
+deploy/*.env
 output
 data
 tests
