@@ -19,9 +19,9 @@ def _load_contract_paths() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("path", _load_contract_paths())
-def test_every_contract_path_is_a_route(path: str) -> None:
+def test_every_contract_path_is_a_route(path: str, tmp_path: Path) -> None:
     operations = _load_contract_paths()[path]
-    app = build_app(Settings(_env_file=None, data_source="csv"))
+    app = build_app(Settings(_env_file=None, data_source="csv", output_directory=tmp_path))
     served = app.openapi()["paths"]
     for method in operations:
         assert method in served[path]

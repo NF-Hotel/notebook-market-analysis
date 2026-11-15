@@ -1,8 +1,10 @@
 import json
 import random
+import sys
 import time
 from collections.abc import Callable
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +18,15 @@ from app.adapters.storage.holiday_file_store import FileHolidayStore
 from app.adapters.storage.run_file_store import FileRunStore
 from app.application.holidays import HolidayService
 from app.application.insights import UnconfiguredInsightProvider
+from app.application.model_insights import ModelInsightProvider
 from app.application.ports.insight_provider import InsightProvider
+from app.application.ports.model_client import TimeLimits
 from app.application.runs import ExecuteRun, GetRun, GetRunResult, StartRun
 from app.domain.run import Run
 from app.infrastructure.config import Settings
 from app.infrastructure.main import build_app
+from tests.unit.ai_fakes import FakeModelClient, well_formed_answer
+from tests.unit.compose_file import mem_limit_bytes
 from tests.unit.run_fakes import (
     T0,
     ManualTaskRunner,
@@ -30,6 +36,9 @@ from tests.unit.run_fakes import (
     booking_body,
     request_body,
 )
+
+if sys.platform != "win32":
+    import resource
 
 KEY = {"X-API-Key": "secret"}
 RUNS = "/api/v1/market-analysis/runs"
@@ -318,18 +327,76 @@ def _generated(count: int) -> list[dict[str, Any]]:
     return bookings
 
 
-def test_a_run_of_55484_bookings_completes_in_under_60_seconds(service: Service) -> None:
+def _peak_memory_bytes() -> int | None:
+    """The largest resident set of this process so far; None on Windows (no ``resource``).
+
+    The test process holds the generated bookings and their JSON besides all that the service
+    holds for the run, so the figure is an upper bound of what the container needs for it.
+    """
+    if sys.platform == "win32":
+        return None
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024  # bytes on macOS, KiB on Linux
+
+
+@dataclass(frozen=True)
+class LargeRun:
+    """What the two tests below read from the one run of 55,484 bookings."""
+
+    elapsed_seconds: float
+    peak_memory_bytes: int | None
+    state: str
+    result: dict[str, Any]
+    model_requests: int
+
+
+@pytest.fixture(scope="module")
+def large_run(tmp_path_factory: pytest.TempPathFactory) -> LargeRun:
+    """A run of 55,484 bookings with insights on, the real insight code and a fake model."""
+    model = FakeModelClient(well_formed_answer)
+    now = datetime(2026, 5, 1, 8, 0, tzinfo=UTC)
+    limits = TimeLimits(stall_seconds=600, total_seconds=14400)
+    provider = ModelInsightProvider(model, limits, 32768, lambda: now)
+    service = Service(tmp_path_factory.mktemp("large-run"), provider)
     body = request_body(room_count=300, bookings=_generated(BOOKING_COUNT), pricing={})
     started = time.perf_counter()
-    response = service.post(body, insights="false")
+    response = service.post(body)  # insights are on by default
     assert response.status_code == 202
     service.runner.run_all()
     elapsed = time.perf_counter() - started
     run_id = response.json()["run_id"]
-    assert service.get(f"{RUNS}/{run_id}").json()["state"] == "completed"
-    assert service.get(f"{RUNS}/{run_id}/result").json()["input"]["record_count"] == BOOKING_COUNT
-    assert "price_suggestions" in service.get(f"{RUNS}/{run_id}/result").json()
-    assert elapsed < TIME_LIMIT_SECONDS
+    return LargeRun(
+        elapsed_seconds=elapsed,
+        peak_memory_bytes=_peak_memory_bytes(),
+        state=service.get(f"{RUNS}/{run_id}").json()["state"],
+        result=service.get(f"{RUNS}/{run_id}/result").json(),
+        model_requests=len(model.requests),
+    )
+
+
+def test_a_run_of_55484_bookings_with_the_fake_ai_completes_in_under_60_seconds(
+    large_run: LargeRun,
+) -> None:
+    result = large_run.result
+    available = [a for a in result["analyses"].values() if a["status"] == "available"]
+    assert large_run.state == "completed"
+    assert result["input"]["record_count"] == BOOKING_COUNT
+    assert "price_suggestions" in result
+    assert result["insights"]["requested"] is True
+    assert available
+    assert all(a["insight"]["status"] == "available" for a in available)
+    assert large_run.model_requests >= len(available)
+    assert large_run.elapsed_seconds < TIME_LIMIT_SECONDS
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="the peak is read with the POSIX resource module"
+)
+def test_the_run_of_55484_bookings_stays_within_the_mem_limit_of_the_compose_file(
+    large_run: LargeRun,
+) -> None:
+    assert large_run.peak_memory_bytes is not None
+    assert large_run.peak_memory_bytes < mem_limit_bytes()
 
 
 def test_a_run_with_pricing_gives_a_result_that_the_contract_accepts(service: Service) -> None:
