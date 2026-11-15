@@ -1,0 +1,16 @@
+# Editor settings: UTF-8, LF line endings and one final newline in every file (coding conventions,
+# rule 15); ruff and yamllint check the rest.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
